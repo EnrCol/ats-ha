@@ -1,0 +1,33 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Alto Trevigiano Servizi",
+        "description": "Inserisci i percorsi API completi relativi al portale autenticato e il cookie di sessione. Non inserire credenziali SPID.",
+        "data": {
+          "base_url": "URL base del portale",
+          "supply_path": "Percorso API utenze (inizia con /webapi/...)",
+          "invoice_path": "Percorso API fatture (inizia con /webapi/...)",
+          "cookie": "Cookie HTTP della sessione ATS",
+          "scan_interval": "Intervallo aggiornamento in minuti",
+          "reading_path": "Percorso API letture contatore (opzionale, /webapi/api/v1/reading-base/...)"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configurazione ATS",
+        "data": {
+          "base_url": "URL base del portale",
+          "supply_path": "Percorso API utenze",
+          "invoice_path": "Percorso API fatture",
+          "cookie": "Cookie HTTP della sessione ATS",
+          "scan_interval": "Intervallo aggiornamento in minuti",
+          "reading_path": "Percorso API letture contatore (opzionale, /webapi/api/v1/reading-base/...)"
+        }
+      }
+    }
+  }
+}

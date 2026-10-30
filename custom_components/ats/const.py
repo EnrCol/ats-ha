@@ -1,0 +1,12 @@
+DOMAIN = "ats"
+CONF_BASE_URL = "base_url"
+CONF_SUPPLY_PATH = "supply_path"
+CONF_INVOICE_PATH = "invoice_path"
+CONF_READING_PATH = "reading_path"
+CONF_COOKIE = "cookie"
+CONF_SCAN_INTERVAL = "scan_interval"
+DEFAULT_BASE_URL = "https://sgc.altotrevigianoservizi.it"
+DEFAULT_SCAN_INTERVAL = 60
+MIN_SCAN_INTERVAL = 5
+MAX_SCAN_INTERVAL = 1440
+PLATFORMS = ["sensor"]
