@@ -70,11 +70,13 @@ The integration does not ask for a username and password: it uses the API reques
 
 The update interval is in minutes (5 to 1440, default 60).
 
-> The paths contain codes tied to your account and the cookie temporarily works like a password. Never paste them in issues, forums, logs or screenshots. If you need to show something, blur the codes.
+> The paths contain codes tied to your account and the cookie works like a password. Never paste them in issues, forums, logs or screenshots. If you need to show something, blur the codes.
 
-## Expired cookie
+## Session lifetime
 
-The portal session expires. When it does, the update fails and Home Assistant shows the integration's update error. Repeat steps 1–7 to get a fresh cookie and update it in **Settings → Devices & services → ATS → Configure**: the integration reloads by itself.
+The integration uses the portal's session cookie and implements neither automatic SPID login renewal nor HMAC signing. So far, in real use, the cookie has stayed valid over time without needing renewal, but its lifetime is **not documented by the portal** and is not guaranteed: the session may end, for example after logging out of the portal, a revocation or a server-side expiry.
+
+If it stops working, the update fails and Home Assistant shows the integration's update error. Repeat steps 1–7 to get a fresh cookie and update it in **Settings → Devices & services → ATS → Configure**: the integration reloads by itself. To avoid invalidating the cookie in use, do not log out of the portal in the browser you copied it from.
 
 ## Security
 
@@ -92,7 +94,7 @@ The portal session expires. When it does, the update fails and Home Assistant sh
 
 ## Troubleshooting
 
-- **Error when adding, or unavailable entities:** check that the paths start with `/`, include their codes and that the cookie is still valid.
+- **Error when adding, or unavailable entities:** check that the paths start with `/`, include their codes and that the cookie is still valid (see *Session lifetime*).
 - **Reading sensors `unknown`:** the readings path is missing; add it from **Configure**.
 - **Entity IDs are not `sensor.ats_…`:** if you installed an earlier version, already registered IDs keep their old names. From the device page, ⋮ menu, use **Recreate entity IDs**.
 - For logs, enable debug level for `custom_components.ats` and do not share lines containing cookies or codes.

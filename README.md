@@ -70,11 +70,13 @@ L'integrazione non chiede username e password: usa i percorsi delle richieste AP
 
 L'intervallo di aggiornamento è in minuti (da 5 a 1440, predefinito 60).
 
-> I percorsi contengono codici legati al tuo account e il cookie equivale temporaneamente a una password. Non incollarli in issue, forum, log o screenshot. Se devi mostrare qualcosa, oscura i codici.
+> I percorsi contengono codici legati al tuo account e il cookie equivale a una password. Non incollarli in issue, forum, log o screenshot. Se devi mostrare qualcosa, oscura i codici.
 
-## Cookie scaduto
+## Durata della sessione
 
-La sessione del portale scade. Quando succede, l'aggiornamento fallisce e Home Assistant mostra l'errore di aggiornamento dell'integrazione. Rifai i passi 1–7 per prendere un cookie nuovo e aggiornalo in **Impostazioni → Dispositivi e servizi → ATS → Configura**: l'integrazione si ricarica da sola.
+L'integrazione usa il cookie di sessione del portale e non implementa né il rinnovo automatico dell'accesso SPID né la firma HMAC. Finora, nell'uso reale, il cookie è rimasto valido nel tempo senza bisogno di essere rinnovato, ma la durata **non è documentata dal portale** e non è garantita: la sessione potrebbe terminare, per esempio dopo un logout dal portale, una revoca o una scadenza lato server.
+
+Se smette di funzionare, l'aggiornamento fallisce e Home Assistant mostra l'errore di aggiornamento dell'integrazione. Rifai i passi 1–7 per prendere un cookie nuovo e aggiornalo in **Impostazioni → Dispositivi e servizi → ATS → Configura**: l'integrazione si ricarica da sola. Per non invalidare il cookie in uso, evita di fare logout dal portale nel browser da cui l'hai copiato.
 
 ## Sicurezza
 
@@ -92,7 +94,7 @@ La sessione del portale scade. Quando succede, l'aggiornamento fallisce e Home A
 
 ## Risoluzione problemi
 
-- **Errore all'aggiunta o entità non disponibili:** controlla che i percorsi comincino con `/`, che siano completi di codici e che il cookie sia ancora valido.
+- **Errore all'aggiunta o entità non disponibili:** controlla che i percorsi comincino con `/`, che siano completi di codici e che il cookie sia ancora valido (vedi *Durata della sessione*).
 - **Sensori delle letture `unknown`:** manca il percorso delle letture; aggiungilo da **Configura**.
 - **Gli ID non sono `sensor.ats_…`:** se avevi installato una versione precedente, gli ID già registrati restano quelli vecchi. Dalla pagina del dispositivo, menu ⋮, usa **Ricrea ID entità**.
 - Per i log, attiva il livello debug per `custom_components.ats` e non condividere righe che contengono cookie o codici.
