@@ -124,7 +124,18 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
         if self._metric == "invoice_count":
             return len(invoices) if invoices else None
         if self._metric == "unpaid_count":
-            return sum(1 for i in invoices if i.get("Payed") is False or i.get("ToPay") is True or str(i.get("StatusText", "")).lower() in ("non pagata", "non pagato"))
+            # ATS can report ToPay=True even for settled historical invoices.
+            # An explicit Payed=True always takes precedence.
+            return sum(
+                1
+                for i in invoices
+                if i.get("Payed") is not True
+                and (
+                    i.get("Payed") is False
+                    or i.get("ToPay") is True
+                    or str(i.get("StatusText", "")).lower() in ("non pagata", "non pagato")
+                )
+            )
         if self._metric == "remaining_total":
             vals = [_number(_first(i, "RemainingAmount", "RemainigAmount")) for i in invoices]
             vals = [v for v in vals if v is not None]
