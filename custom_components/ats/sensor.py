@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from math import isfinite
 from typing import Any
 
@@ -47,23 +47,84 @@ def _first(d: dict, *keys):
     return None
 
 
-def _invoice_total_for_year(invoices: list[dict], year: int) -> tuple[float | None, int]:
-    """Total invoice amounts by issue date, not by billing period or due date."""
-    if not invoices:
-        return None, 0
-    amount = 0.0
-    count = 0
+def _display_date(value: Any) -> str | None:
+    """Render a valid ATS date as GG-MM-AAAA without modifying stored ISO dates."""
+    parsed = _date(value)
+    return parsed.strftime("%d-%m-%Y") if parsed is not None else None
+
+
+def _invoice_history(invoices: list[dict]) -> dict:
+    """Build one compact chronological history and yearly financial totals.
+
+    Only EmissionDate determines the invoice year, never the billing period.
+    An unknown invoice amount or payment keeps that year's corresponding
+    total unknown instead of reporting a misleading partial sum.
+    """
+    annual: dict[str, dict] = {}
+    chronological: list[tuple[date, dict]] = []
+    missing_dates = 0
+
     for invoice in invoices:
         issued = _date(invoice.get("EmissionDate"))
-        if issued is None or issued.year != year:
+        year = issued.year if issued is not None else None
+        amount = _number(invoice.get("TotalAmount"))
+        if amount is not None and not isfinite(amount):
+            amount = None
+        paid = _number(invoice.get("PaidAmount"))
+        if paid is not None and not isfinite(paid):
+            paid = None
+
+        chronological.append((
+            issued.date() if issued is not None else date.min,
+            {
+                "anno": year,
+                "importo_totale": amount,
+                "emissione": _display_date(invoice.get("EmissionDate")),
+                "scadenza": _display_date(invoice.get("ExpirationDate")),
+                "stato": invoice.get("StatusText"),
+                "importo_pagato": paid,
+            },
+        ))
+
+        if year is None:
+            missing_dates += 1
             continue
-        value = _number(invoice.get("TotalAmount"))
-        if value is None or not isfinite(value):
-            # A partial sum would be misleading when an issued invoice has no amount.
-            return None, count
-        count += 1
-        amount += value
-    return round(amount, 2), count
+        bucket = annual.setdefault(str(year), {
+            "numero_fatture": 0,
+            "totale_fatturato": 0.0,
+            "totale_pagato": 0.0,
+        })
+        bucket["numero_fatture"] += 1
+        for field, value in (
+            ("totale_fatturato", amount),
+            ("totale_pagato", paid),
+        ):
+            if value is None:
+                bucket[field] = None
+            elif bucket[field] is not None:
+                bucket[field] += value
+
+    for bucket in annual.values():
+        for field in ("totale_fatturato", "totale_pagato"):
+            if bucket[field] is not None:
+                bucket[field] = round(bucket[field], 2)
+
+    chronological.sort(key=lambda item: item[0], reverse=True)
+    return {
+        "riepilogo_annuale": dict(sorted(annual.items(), reverse=True)),
+        "storico_fatture": [item for _, item in chronological],
+        "fatture_senza_data_emissione": missing_dates,
+    }
+
+
+def _invoice_total_for_year(invoices: list[dict], year: int) -> tuple[float | None, int]:
+    """Reuse the same issued-year totals as the invoice-count history."""
+    if not invoices:
+        return None, 0
+    year_data = _invoice_history(invoices)["riepilogo_annuale"].get(str(year))
+    if year_data is None:
+        return 0.0, 0
+    return year_data["totale_fatturato"], year_data["numero_fatture"]
 
 
 def _annualized_consumption(
@@ -261,6 +322,7 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
         if self._metric == "total_supplies":
             return len(supplies) if supplies else None
         if self._metric == "invoice_count":
+            self._attr_extra_state_attributes = _invoice_history(invoices)
             return len(invoices) if invoices else None
         if self._metric == "unpaid_count":
             # ATS can report ToPay=True even for settled historical invoices.
@@ -341,8 +403,11 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
                     "importo_totale": i.get("TotalAmount"),
                     "residuo": _first(i, "RemainingAmount", "RemainigAmount"),
                     "pagato": i.get("PaidAmount"),
+                    "anno": _date(i.get("EmissionDate")).year if _date(i.get("EmissionDate")) else None,
                     "emissione": i.get("EmissionDate"),
                     "scadenza": i.get("ExpirationDate"),
+                    "emissione_formattata": _display_date(i.get("EmissionDate")),
+                    "scadenza_formattata": _display_date(i.get("ExpirationDate")),
                     "periodo_da": i.get("PeriodFrom"),
                     "periodo_a": i.get("PeriodTo"),
                     "consumo": i.get("Consumption"),
