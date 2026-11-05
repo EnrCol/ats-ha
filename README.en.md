@@ -10,6 +10,8 @@
 > The UI now accepts ATS portal username/password, but **automatic supply discovery
 > is not implemented yet**. Supplies and invoices API paths are still required.
 > Do not replace a working production installation with this branch.
+>
+> Even with username and password, this beta supports **one ATS config entry per Home Assistant instance** until reliable account discovery has been verified.
 
 ## What it does
 
@@ -81,7 +83,7 @@ The update interval is in minutes (5 to 1440, default 60).
 
 With ATS portal username/password the integration signs in automatically and retries once after a session denial. It does not implement SPID/CIE or HMAC signing. Session lifetimes and compatibility with other accounts still require testing.
 
-If automatic login stops working, check your ATS credentials and API paths. In manual cookie mode, a revoked or expired cookie must be replaced in the options form.
+If ATS explicitly rejects your stored credentials, Home Assistant starts a **reauthentication** flow: enter the new password for the same username and the integration reloads without recreating entities. Network errors and portal changes do not trigger password prompts. In manual cookie mode, update a revoked or expired cookie in the options form.
 
 ## Security
 
