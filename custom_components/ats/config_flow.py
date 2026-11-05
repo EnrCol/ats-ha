@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from urllib.parse import urlparse
+
+import aiohttp
 
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
+
+from .auth import ATSInvalidCredentials, ATSLoginError, async_login
 from homeassistant.helpers.selector import (
     TextSelector,
     TextSelectorConfig,
@@ -66,6 +71,20 @@ def _validate_input(data: dict) -> str | None:
     return None
 
 
+async def _validate_portal_credentials(username: str, password: str) -> str | None:
+    """Check credentials against ATS without logging or returning secrets."""
+    try:
+        async with aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=20)
+        ) as session:
+            await async_login(session, DEFAULT_BASE_URL, username, password)
+    except ATSInvalidCredentials:
+        return "invalid_auth"
+    except (ATSLoginError, aiohttp.ClientError, TimeoutError):
+        return "cannot_connect"
+    return None
+
+
 class ATSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Set up ATS without requiring users to copy authentication cookies."""
 
@@ -78,13 +97,18 @@ class ATSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if error:
                 errors["base"] = error
             else:
-                # Keep the existing stable unique ID until the automatic
-                # account discovery and per-account migration are ready.
-                await self.async_set_unique_id("ats_portal")
-                self._abort_if_unique_id_configured()
                 username = (user_input.get(CONF_USERNAME) or "").strip()
                 password = user_input.get(CONF_PASSWORD) or ""
-                return self.async_create_entry(
+                if username:
+                    error = await _validate_portal_credentials(username, password)
+                    if error:
+                        errors["base"] = error
+                if not errors:
+                    # Until account discovery is implemented, one ATS entry
+                    # per HA instance remains supported.
+                    await self.async_set_unique_id("ats_portal")
+                    self._abort_if_unique_id_configured()
+                    return self.async_create_entry(
                     title="Alto Trevigiano Servizi",
                     data={
                         CONF_BASE_URL: user_input[CONF_BASE_URL].strip().rstrip("/"),
@@ -94,7 +118,9 @@ class ATSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_COOKIE: (user_input.get(CONF_COOKIE) or "").strip(),
                         CONF_USERNAME: username,
                         CONF_PASSWORD: password,
-                        CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
+                        CONF_SCAN_INTERVAL: int(
+                            user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+                        ),
                     },
                 )
 
@@ -114,6 +140,36 @@ class ATSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         })
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
 
+    async def async_step_reauth(self, entry_data: Mapping[str, object]):
+        """Reauthenticate the existing ATS entry, never create a new one."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(self, user_input=None):
+        """Request only the password, so the ATS username cannot change."""
+        entry = self._get_reauth_entry()
+        username = entry.data.get(CONF_USERNAME)
+        if not isinstance(username, str) or not username.strip():
+            return self.async_abort(reason="reauth_not_supported")
+
+        errors = {}
+        if user_input is not None:
+            password = user_input[CONF_PASSWORD]
+            error = await _validate_portal_credentials(username, password)
+            if error:
+                errors["base"] = error
+            else:
+                # Credentials are stored in entry.data, not in options.
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data_updates={CONF_PASSWORD: password},
+                )
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({vol.Required(CONF_PASSWORD): _PASSWORD_FIELD}),
+            errors=errors,
+        )
+
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
@@ -121,7 +177,7 @@ class ATSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class ATSOptionsFlow(config_entries.OptionsFlow):
-    """Change scan interval, endpoints and credentials without losing secrets."""
+    """Manage endpoints and polling, without copying passwords into options."""
 
     def __init__(self, config_entry):
         self._entry = config_entry
@@ -129,40 +185,41 @@ class ATSOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         current = {**self._entry.data, **self._entry.options}
         errors = {}
-
         if user_input is not None:
-            proposed = {**current, **user_input}
-            if not user_input.get(CONF_PASSWORD):
-                # The password box is intentionally never pre-populated.
-                proposed[CONF_PASSWORD] = current.get(CONF_PASSWORD, "")
-            if not user_input.get(CONF_COOKIE):
-                proposed[CONF_COOKIE] = current.get(CONF_COOKIE, "")
-            if not (proposed.get(CONF_USERNAME) or "").strip():
-                proposed[CONF_PASSWORD] = ""
-            elif (
-                proposed.get(CONF_USERNAME) != current.get(CONF_USERNAME)
-                and not user_input.get(CONF_PASSWORD)
-            ):
-                errors["base"] = "missing_credentials"
-            if not errors:
-                error = _validate_input(proposed)
-                if error:
-                    errors["base"] = error
-                else:
-                    return self.async_create_entry(
-                        title="", data={**self._entry.options, **proposed}
-                    )
+            # Only non-secret settings belong in options.
+            proposed = {
+                **current,
+                **user_input,
+                CONF_USERNAME: self._entry.data.get(CONF_USERNAME, ""),
+                CONF_PASSWORD: self._entry.data.get(CONF_PASSWORD, ""),
+                CONF_COOKIE: user_input.get(
+                    CONF_COOKIE, current.get(CONF_COOKIE, "")
+                ),
+            }
+            error = _validate_input(proposed)
+            if error:
+                errors["base"] = error
+            else:
+                return self.async_create_entry(
+                    title="",
+                    data={
+                        CONF_BASE_URL: proposed[CONF_BASE_URL].strip().rstrip("/"),
+                        CONF_SUPPLY_PATH: proposed[CONF_SUPPLY_PATH].strip(),
+                        CONF_INVOICE_PATH: proposed[CONF_INVOICE_PATH].strip(),
+                        CONF_READING_PATH: (proposed.get(CONF_READING_PATH) or "").strip(),
+                        CONF_COOKIE: (proposed.get(CONF_COOKIE) or "").strip(),
+                        CONF_SCAN_INTERVAL: int(
+                            proposed.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+                        ),
+                    },
+                )
 
         schema = vol.Schema({
             vol.Required(CONF_BASE_URL, default=current.get(CONF_BASE_URL, DEFAULT_BASE_URL)): str,
-            vol.Optional(CONF_USERNAME, default=current.get(CONF_USERNAME, "")): TextSelector(
-                TextSelectorConfig(autocomplete="username")
-            ),
-            vol.Optional(CONF_PASSWORD): _PASSWORD_FIELD,
             vol.Required(CONF_SUPPLY_PATH, default=current.get(CONF_SUPPLY_PATH, "")): str,
             vol.Required(CONF_INVOICE_PATH, default=current.get(CONF_INVOICE_PATH, "")): str,
             vol.Optional(CONF_READING_PATH, default=current.get(CONF_READING_PATH, "")): str,
-            vol.Optional(CONF_COOKIE): str,
+            vol.Optional(CONF_COOKIE, default=current.get(CONF_COOKIE, "")): str,
             vol.Optional(CONF_SCAN_INTERVAL, default=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)): vol.All(
                 vol.Coerce(int), vol.Range(min=MIN_SCAN_INTERVAL, max=MAX_SCAN_INTERVAL)
             ),
