@@ -25,13 +25,13 @@ Everything is exposed as sensors under a single device named **ATS**.
 | Entity | Content |
 |---|---|
 | `sensor.ats_utenze_attive` / `sensor.ats_utenze_totali` | Active and total supplies |
-| `sensor.ats_dettagli_utenze_attive` | Attributes `utenza_1`, `utenza_2`… (status, service, address, meter, balance, estimated yearly consumption) |
+| `sensor.ats_dettagli_utenze_attive` | Display name **Dettagli utenze**: includes both active and ceased supplies in `utenza_1`, `utenza_2`… attributes |
 | `sensor.ats_fatture_presenti` / `sensor.ats_fatture_non_pagate` | Invoice counts; `fatture_presenti` also exposes `riepilogo_annuale` and `storico_fatture` attributes |
 | `sensor.ats_totale_fatture` / `sensor.ats_totale_pagato` / `sensor.ats_totale_residuo_da_pagare` | Totals in € |
 | `sensor.ats_totale_fatture_anno_corrente` | Sum of invoices issued in the current calendar year (€), with year and invoice count as attributes |
 | `sensor.ats_prossima_scadenza_fattura` / `sensor.ats_importo_prossima_scadenza` | Due date and remaining amount of the next open invoice |
 | `sensor.ats_stato_ultima_fattura` | Latest invoice status, with number, period, amount and remaining balance as attributes |
-| `sensor.ats_consumo_fatturato_totale` | Sum of the consumption on the invoices |
+| `sensor.ats_consumo_fatturato_totale` | Sum of consumption values on invoices, with **m³** unit (not a cumulative meter reading) |
 | `sensor.ats_dettagli_fatture` | Existing `fattura_1`, `fattura_2`… ISO-date attributes retained; new `emissione_formattata` / `scadenza_formattata` dates use `DD-MM-YYYY` |
 | `sensor.ats_ultima_lettura_contatore` | Latest reading in m³ |
 | `sensor.ats_consumo_ultima_lettura` / `sensor.ats_data_ultima_lettura` | Consumption and date of the latest reading |
@@ -39,6 +39,8 @@ Everything is exposed as sensors under a single device named **ATS**.
 | `sensor.ats_previsione_consumo_annuo` | Annualized consumption in m³/year from the latest two valid effective readings per active meter; ATS's own estimate is available in attributes |
 
 With automatic login, invoices use an open-ended historical start date and readings use a rolling 365-day API window. In manual cookie mode, the readings path is optional.
+
+Sensors measuring m³ or m³/year **suggest zero display decimals** without rounding their underlying values. Users can override display precision in Home Assistant entity settings. The `Data ultima lettura` sensor keeps an ISO date as required for Home Assistant date entities; dashboards can format it as `DD-MM-YYYY`.
 
 ### Financial history and annual calculations
 
