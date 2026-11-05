@@ -31,6 +31,7 @@ EXPECTED_KEYS = {
     "last_invoice_status", "active_supply_details", "invoice_details",
     "last_reading_value", "last_reading_consumption", "last_reading_date",
     "reading_details",
+    "invoices_current_year", "annual_consumption_forecast",
 }
 
 
