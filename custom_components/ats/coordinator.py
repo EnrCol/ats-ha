@@ -156,7 +156,10 @@ class ATSCoordinator(DataUpdateCoordinator):
         self._authenticated = True
 
     def _credentials_paths_need_token(self) -> bool:
-        return any(
+        # The readings fallback always uses AT when no manual reading path
+        # exists. Fully literal legacy paths must remain usable without
+        # scraping sol.conf, because older installations did not require it.
+        return not self.reading_path or any(
             path_has_session_token(path)
             for path in (self.supply_path, self.invoice_path, self.reading_path)
             if path
