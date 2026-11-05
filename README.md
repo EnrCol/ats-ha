@@ -40,15 +40,17 @@ Con login automatico le fatture vengono richieste senza data iniziale fissa e le
 
 ## Installazione
 
-### Con HACS (consigliata)
+### Con HACS (dopo la pubblicazione su `main`)
+
+> **Attenzione:** HACS usa normalmente il branch predefinito del repository (`main`), che al momento non contiene questa versione sperimentale. Aggiungere il repository a HACS **non installa** automaticamente `feat/public-ats-onboarding`.
 
 1. In HACS apri il menu ⋮ → **Repository personalizzati**.
 2. Incolla l'URL di questo repository, scegli la categoria **Integrazione** e premi **Aggiungi**.
 3. Cerca **Alto Trevigiano Servizi (ATS)**, scaricala e **riavvia Home Assistant**.
 
-### Manuale
+### Manuale (per provare questo branch)
 
-Copia la cartella `custom_components/ats` in `/config/custom_components/ats` e riavvia Home Assistant.
+Scarica lo ZIP del ramo [`feat/public-ats-onboarding`](https://github.com/EnrCol/ats-ha/archive/refs/heads/feat/public-ats-onboarding.zip), estrailo e copia la cartella `custom_components/ats` in `/config/custom_components/ats`. Riavvia Home Assistant **solo su un'istanza di test**; non sostituire una configurazione live funzionante prima della validazione reale.
 
 ### Aggiunta dell'integrazione
 
