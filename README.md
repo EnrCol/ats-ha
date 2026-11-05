@@ -25,13 +25,13 @@ Tutto viene esposto come sensori sotto un unico dispositivo chiamato **ATS**.
 | Entità | Contenuto |
 |---|---|
 | `sensor.ats_utenze_attive` / `sensor.ats_utenze_totali` | Numero di utenze attive e totali |
-| `sensor.ats_dettagli_utenze_attive` | Attributi `utenza_1`, `utenza_2`… (stato, servizio, indirizzo, contatore, saldo, consumo annuo stimato) |
+| `sensor.ats_dettagli_utenze_attive` | Nome visualizzato **Dettagli utenze**: comprende forniture attive e cessate negli attributi `utenza_1`, `utenza_2`… |
 | `sensor.ats_fatture_presenti` / `sensor.ats_fatture_non_pagate` | Conteggio fatture; `fatture_presenti` espone anche `riepilogo_annuale` e `storico_fatture` negli attributi |
 | `sensor.ats_totale_fatture` / `sensor.ats_totale_pagato` / `sensor.ats_totale_residuo_da_pagare` | Totali in € |
 | `sensor.ats_totale_fatture_anno_corrente` | Somma delle fatture emesse nell'anno solare corrente (€), con anno e numero fatture negli attributi |
 | `sensor.ats_prossima_scadenza_fattura` / `sensor.ats_importo_prossima_scadenza` | Scadenza e importo residuo della prossima fattura aperta |
 | `sensor.ats_stato_ultima_fattura` | Stato dell'ultima fattura, con numero, periodo, importo e residuo negli attributi |
-| `sensor.ats_consumo_fatturato_totale` | Somma dei consumi presenti sulle fatture |
+| `sensor.ats_consumo_fatturato_totale` | Somma dei consumi presenti sulle fatture, con unità **m³** (non equivale alla lettura cumulativa) |
 | `sensor.ats_dettagli_fatture` | Attributi `fattura_1`, `fattura_2`… con i campi originali ISO e nuove date `emissione_formattata` / `scadenza_formattata` in formato `GG-MM-AAAA` |
 | `sensor.ats_ultima_lettura_contatore` | Ultima lettura in m³ |
 | `sensor.ats_consumo_ultima_lettura` / `sensor.ats_data_ultima_lettura` | Consumo e data dell'ultima lettura |
@@ -39,6 +39,8 @@ Tutto viene esposto come sensori sotto un unico dispositivo chiamato **ATS**.
 | `sensor.ats_previsione_consumo_annuo` | Consumo annualizzato in m³/anno dalle ultime due letture effettive validate per contatore attivo, con confronto alla stima ATS negli attributi |
 
 Con login automatico le fatture vengono richieste senza data iniziale fissa e le letture su una finestra mobile di 365 giorni; con cookie manuale il percorso API delle letture è facoltativo.
+
+I sensori in m³ e m³/anno **suggeriscono la visualizzazione senza decimali**, senza arrotondare i valori effettivamente forniti a Home Assistant. Gli utenti possono cambiare la precisione dalle impostazioni dell'entità. Il sensore `Data ultima lettura` mantiene una vera data ISO per la compatibilità con Home Assistant; le dashboard possono mostrarla come `GG-MM-AAAA`.
 
 ### Storico economico e calcoli annuali
 
