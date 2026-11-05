@@ -26,13 +26,13 @@ Tutto viene esposto come sensori sotto un unico dispositivo chiamato **ATS**.
 |---|---|
 | `sensor.ats_utenze_attive` / `sensor.ats_utenze_totali` | Numero di utenze attive e totali |
 | `sensor.ats_dettagli_utenze_attive` | Attributi `utenza_1`, `utenza_2`… (stato, servizio, indirizzo, contatore, saldo, consumo annuo stimato) |
-| `sensor.ats_fatture_presenti` / `sensor.ats_fatture_non_pagate` | Numero di fatture e di quelle non pagate |
+| `sensor.ats_fatture_presenti` / `sensor.ats_fatture_non_pagate` | Conteggio fatture; `fatture_presenti` espone anche `riepilogo_annuale` e `storico_fatture` negli attributi |
 | `sensor.ats_totale_fatture` / `sensor.ats_totale_pagato` / `sensor.ats_totale_residuo_da_pagare` | Totali in € |
 | `sensor.ats_totale_fatture_anno_corrente` | Somma delle fatture emesse nell'anno solare corrente (€), con anno e numero fatture negli attributi |
 | `sensor.ats_prossima_scadenza_fattura` / `sensor.ats_importo_prossima_scadenza` | Scadenza e importo residuo della prossima fattura aperta |
 | `sensor.ats_stato_ultima_fattura` | Stato dell'ultima fattura, con numero, periodo, importo e residuo negli attributi |
 | `sensor.ats_consumo_fatturato_totale` | Somma dei consumi presenti sulle fatture |
-| `sensor.ats_dettagli_fatture` | Attributi `fattura_1`, `fattura_2`… con tutti i campi di ogni fattura |
+| `sensor.ats_dettagli_fatture` | Attributi `fattura_1`, `fattura_2`… con i campi originali ISO e nuove date `emissione_formattata` / `scadenza_formattata` in formato `GG-MM-AAAA` |
 | `sensor.ats_ultima_lettura_contatore` | Ultima lettura in m³ |
 | `sensor.ats_consumo_ultima_lettura` / `sensor.ats_data_ultima_lettura` | Consumo e data dell'ultima lettura |
 | `sensor.ats_dettagli_letture_contatore` | Attributi `lettura_1`, `lettura_2`… con lo storico delle letture |
@@ -40,8 +40,10 @@ Tutto viene esposto come sensori sotto un unico dispositivo chiamato **ATS**.
 
 Con login automatico le fatture vengono richieste senza data iniziale fissa e le letture su una finestra mobile di 365 giorni; con cookie manuale il percorso API delle letture è facoltativo.
 
-### Calcoli annuali
+### Storico economico e calcoli annuali
 
+- **Fatture presenti:** il valore resta il numero totale restituito da ATS. L'attributo `riepilogo_annuale` raggruppa per anno di **emissione**, indicando `numero_fatture`, `totale_fatturato` e `totale_pagato`; `storico_fatture` contiene, in ordine dalla più recente, anno, importo, emissione, scadenza, stato e importo pagato (quando disponibile). Le date di questi nuovi attributi sono nel formato `GG-MM-AAAA`. L'attributo `fatture_senza_data_emissione` conta eventuali documenti non assegnabili a un anno.
+- **Valori mancanti:** se una fattura non riporta l'importo totale o pagato, il corrispondente totale annuale è `null`, anziché una somma parziale potenzialmente fuorviante. Le fatture senza data rimangono nello storico, ma non entrano nei totali annuali. Il sensore `Dettagli fatture` mantiene tutti gli attributi esistenti e le date ISO, aggiungendo `anno`, `emissione_formattata` e `scadenza_formattata`.
 - **Totale fatture anno corrente:** usa `EmissionDate` (data di emissione), non la scadenza né il periodo fatturato. Se ci sono fatture ma nessuna nell'anno corrente, il valore è `0 €`. Con elenco fatture vuoto o importo annuale non valido restituisce `unknown`.
 - **Previsione consumo annuo:** per ogni contatore di una fornitura attiva considera le due letture effettive (`Effective=true`) e validate positivamente più recenti, con date distinte. Formula: `(lettura recente - lettura precedente) × 365 / giorni tra le letture`. Se più contatori sono attivi, somma le proiezioni **solo quando tutti dispongono di una coppia valida**. Non include i contatori delle forniture cessate; dati insufficienti o letture decrescenti danno `unknown`.
 - La previsione è una **proiezione storica**, non una lettura in tempo reale: gli attributi riportano le date, il periodo analizzato e la stima annuale `EstimatedAnnualConsumptyion` comunicata da ATS. Se l'ultima lettura è vecchia, la proiezione può non rappresentare il consumo attuale.
