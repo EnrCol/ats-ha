@@ -53,6 +53,17 @@ class TestSensorIdentifiers(unittest.IsolatedAsyncioTestCase):
             ids = e._attr_device_info["identifiers"]
             self.assertIn((DOMAIN, entry.entry_id), ids)
 
+        by_key = {e._key: e for e in captured}
+        for key, unit in {
+            "invoiced_consumption": "m³",
+            "last_reading_value": "m³",
+            "last_reading_consumption": "m³",
+            "annual_consumption_forecast": "m³/anno",
+        }.items():
+            self.assertEqual(by_key[key]._attr_native_unit_of_measurement, unit)
+            self.assertEqual(by_key[key]._attr_suggested_display_precision, 0)
+        self.assertEqual(by_key["active_supply_details"]._attr_name, "Dettagli utenze")
+
 
 if __name__ == "__main__":
     unittest.main()
