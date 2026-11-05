@@ -7,7 +7,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
@@ -42,8 +42,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Credentials are stored in this instance's config entry, not in a
     # global secrets.yaml that would incorrectly be shared across accounts.
-    username = data.get(CONF_USERNAME)
-    password = data.get(CONF_PASSWORD)
+    # Always read credentials from entry.data. Options are only for
+    # polling and API paths, so a reauthentication cannot be shadowed.
+    username = entry.data.get(CONF_USERNAME)
+    password = entry.data.get(CONF_PASSWORD)
     if not (
         isinstance(username, str)
         and username.strip()
@@ -67,6 +69,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     try:
         await coordinator.async_config_entry_first_refresh()
+    except ConfigEntryAuthFailed:
+        await coordinator.async_shutdown()
+        raise
     except Exception:
         # A first-refresh failure can happen repeatedly after HTTP 401.
         # Release the ClientSession before Home Assistant retries setup.
