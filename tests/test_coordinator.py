@@ -414,8 +414,10 @@ class TestCoordinatorModes(unittest.TestCase):
 
     def test_extract_supply_numbers_dedup_and_skip_bad(self):
         out = coord.extract_supply_numbers(
-            [supply("CNT111-1"), supply("CNT111-1"), {"SupplyNo": None},
-             {"SupplyNo": " CNT222-1 "}, {"nofield": 1}]
+            [supply("CNT111-1"), supply("CNT111-1"),
+             {"SupplyNo": " CNT111-1 "}, {"SupplyNo": None},
+             {"SupplyNo": " CNT222-1 "}, {"SupplyNo": "CNT222-1"},
+             {"nofield": 1}]
         )
         self.assertEqual(out, ["CNT111-1", "CNT222-1"])
 
