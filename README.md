@@ -6,6 +6,12 @@ Integrazione **non ufficiale** per Home Assistant che legge dall'area utente di 
 
 > Non è affiliata né approvata da Alto Trevigiano Servizi. Usa le stesse richieste che il portale esegue nel tuo browser, quindi può smettere di funzionare se il portale cambia.
 
+> **Ramo sperimentale `feat/public-ats-onboarding`.** Non è ancora una release pubblica.
+> Il login con username/password dello Sportello Online ATS è ora previsto dalla UI,
+> ma **l'individuazione automatica delle forniture non è ancora implementata**:
+> occorre ancora configurare i percorsi API di utenze e fatture.
+> Non sostituire una installazione live funzionante con questo ramo.
+
 ## Cosa fa
 
 - Utenze (`supply-light`): stato, contatore e dati della fornitura.
@@ -30,7 +36,7 @@ Tutto viene esposto come sensori sotto un unico dispositivo chiamato **ATS**.
 | `sensor.ats_consumo_ultima_lettura` / `sensor.ats_data_ultima_lettura` | Consumo e data dell'ultima lettura |
 | `sensor.ats_dettagli_letture_contatore` | Attributi `lettura_1`, `lettura_2`… con lo storico delle letture |
 
-I sensori delle letture restano `unknown` finché non configuri il percorso delle letture.
+Con login automatico le letture vengono richieste su un intervallo mobile di 365 giorni; con cookie manuale serve configurare il relativo percorso API.
 
 ## Installazione
 
@@ -50,7 +56,7 @@ Copia la cartella `custom_components/ats` in `/config/custom_components/ats` e r
 
 ## Come trovare i dati di configurazione
 
-L'integrazione non chiede username e password: usa i percorsi delle richieste API e il cookie di sessione che il portale usa quando sei collegato. Li prendi dagli strumenti per sviluppatori del browser (qui i nomi delle voci sono quelli di Chrome in italiano; in Edge e Firefox sono molto simili).
+Nel ramo sperimentale puoi scegliere: **username e password ATS** con sessione aggiornata automaticamente, oppure **cookie HTTP manuale** come nella versione originale. In entrambi i casi i percorsi delle richieste API di utenze e fatture vanno ancora ricavati dal portale. I dati si trovano negli strumenti sviluppatore del browser.
 
 1. Accedi all'area utente del portale ATS dal browser, come fai di solito.
 2. Premi **F12** (o tasto destro → **Ispeziona**) e apri la scheda **Rete**.
@@ -65,7 +71,7 @@ L'integrazione non chiede username e password: usa i percorsi delle richieste AP
    | Letture | `…/webapi/api/v1/reading-base/<codice>` | Percorso API letture (facoltativo) |
 
 6. Dall'URL copia **solo la parte che inizia con `/webapi/`**, parametri compresi (per esempio `/webapi/api/v1/reading-base/<codice>`). L'indirizzo base `https://sgc.altotrevigianoservizi.it` è già precompilato.
-7. Sempre in **Intestazioni**, scorri fino a **Intestazioni della richiesta** e copia il valore della riga **cookie** (per esempio `ASP.NET_SessionId=…`), tutto, compreso il nome prima del segno `=`. Va nel campo **Cookie HTTP della sessione**.
+7. Se utilizzi **username e password ATS**, non devi copiare cookie. Solo se preferisci la modalità manuale, nella sezione **Intestazioni** copia il valore del cookie della richiesta e inseriscilo nel relativo campo. Non condividerlo mai.
 8. Controlla che la richiesta sia `GET` con codice `200 OK` e che nella scheda **Risposta** o **Anteprima** compaia un JSON con i tuoi dati.
 
 L'intervallo di aggiornamento è in minuti (da 5 a 1440, predefinito 60).
@@ -74,14 +80,14 @@ L'intervallo di aggiornamento è in minuti (da 5 a 1440, predefinito 60).
 
 ## Durata della sessione
 
-L'integrazione usa il cookie di sessione del portale e non implementa né il rinnovo automatico dell'accesso SPID né la firma HMAC. Finora, nell'uso reale, il cookie è rimasto valido nel tempo senza bisogno di essere rinnovato, ma la durata **non è documentata dal portale** e non è garantita: la sessione potrebbe terminare, per esempio dopo un logout dal portale, una revoca o una scadenza lato server.
+Con **username e password ATS** l'integrazione esegue il login al portale e riprova dopo un rifiuto della sessione. Questo meccanismo non implementa il login SPID/CIE né la firma HMAC. La durata della sessione non è documentata e il comportamento su altri account richiede ulteriori test.
 
-Se smette di funzionare, l'aggiornamento fallisce e Home Assistant mostra l'errore di aggiornamento dell'integrazione. Rifai i passi 1–7 per prendere un cookie nuovo e aggiornalo in **Impostazioni → Dispositivi e servizi → ATS → Configura**: l'integrazione si ricarica da sola. Per non invalidare il cookie in uso, evita di fare logout dal portale nel browser da cui l'hai copiato.
+Se il login automatico fallisce, controlla credenziali e percorsi nelle opzioni dell'integrazione. In modalità cookie manuale, un cookie revocato o scaduto deve essere sostituito nelle opzioni.
 
 ## Sicurezza
 
-- Non inserire credenziali SPID o password del portale.
-- Il cookie viene salvato nella configurazione di Home Assistant, che non è un archivio cifrato per segreti.
+- Usa esclusivamente le credenziali di accesso **allo Sportello Online ATS**; non inserire credenziali SPID/CIE.
+- Password ATS e cookie sono memorizzati nella configurazione Home Assistant; non sono cifrati come in un password manager. Proteggi backup, file e accesso all'istanza.
 - L'integrazione non scrive il cookie nei log.
 - Il portale segnala con un header `deprecated` che in futuro le richieste senza firma HMAC non saranno più accettate. Questa versione **non** implementa HMAC.
 
@@ -94,8 +100,8 @@ Se smette di funzionare, l'aggiornamento fallisce e Home Assistant mostra l'erro
 
 ## Risoluzione problemi
 
-- **Errore all'aggiunta o entità non disponibili:** controlla che i percorsi comincino con `/`, che siano completi di codici e che il cookie sia ancora valido (vedi *Durata della sessione*).
-- **Sensori delle letture `unknown`:** manca il percorso delle letture; aggiungilo da **Configura**.
+- **Errore all'aggiunta o entità non disponibili:** controlla percorsi API completi, credenziali ATS oppure cookie manuale, e stato del portale.
+- **Sensori delle letture `unknown`:** controlla la risposta API; con cookie manuale configura anche il percorso delle letture.
 - **Gli ID non sono `sensor.ats_…`:** se avevi installato una versione precedente, gli ID già registrati restano quelli vecchi. Dalla pagina del dispositivo, menu ⋮, usa **Ricrea ID entità**.
 - Per i log, attiva il livello debug per `custom_components.ats` e non condividere righe che contengono cookie o codici.
 
