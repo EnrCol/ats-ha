@@ -9,6 +9,32 @@ permissions:
   contents: read
 
 jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Check Python syntax and UI translation JSON
+        run: |
+          python -m compileall -q custom_components/ats
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('custom_components/ats')
+          source = json.loads((root / 'strings.json').read_text())
+          translation = json.loads((root / 'translations/it.json').read_text())
+          for section in ('config', 'options'):
+              for step, spec in source[section]['step'].items():
+                  actual = translation[section]['step'][step]['data']
+                  assert set(spec['data']) <= set(actual), (section, step)
+          assert set(source['config']['error']) <= set(translation['config']['error'])
+          assert set(source['config']['abort']) <= set(translation['config']['abort'])
+          print('Python syntax and ATS UI translations: OK')
+          PY
+
   hassfest:
     runs-on: ubuntu-latest
     steps:
