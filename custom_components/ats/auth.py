@@ -263,8 +263,9 @@ def resolve_api_url(
         return build_reading_path(session_token, reading_from, reading_to)
 
     if mode == MODE_CREDENTIALS:
-        if not session_token:
-            raise ATSLoginError("ATS: identificativo sessione corrente non disponibile")
+        # A manual path that has no AT placeholder or UUID can be used as-is.
+        # A fresh token is mandatory only for tokenized paths and the
+        # automatically generated readings fallback.
         if label == "utenze":
             return _apply_token(supply_path, session_token)
         if label == "fatture":
@@ -272,6 +273,8 @@ def resolve_api_url(
             return rewrite_invoice_end_date(resolved, invoice_to)
         if reading_path:
             return _apply_token(reading_path, session_token)
+        if not session_token:
+            raise ATSLoginError("ATS: identificativo sessione corrente non disponibile")
         return build_reading_path(session_token, reading_from, reading_to)
 
     if mode == MODE_COOKIE:
@@ -284,8 +287,10 @@ def resolve_api_url(
     raise ATSLoginError(f"modalità ATS sconosciuta: {mode}")
 
 
-def _apply_token(path: str, session_token: str) -> str:
-    """Substitute the token only when the path actually carries one."""
+def _apply_token(path: str, session_token: str | None) -> str:
+    """Substitute a fresh token only if a manual path needs one."""
     if path_has_session_token(path):
+        if not session_token:
+            raise ATSLoginError("ATS: identificativo sessione corrente non disponibile")
         return substitute_session_token(path, session_token)
     return path
