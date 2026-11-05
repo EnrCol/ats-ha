@@ -132,8 +132,8 @@ class ATSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     if error:
                         errors["base"] = error
                 if not errors:
-                    # Until account discovery is implemented, one ATS entry
-                    # per HA instance remains supported.
+                    # One config entry per HA instance, preserving the legacy
+                    # unique ID until explicit multi-customer support exists.
                     await self.async_set_unique_id("ats_portal")
                     self._abort_if_unique_id_configured()
                     return self.async_create_entry(
