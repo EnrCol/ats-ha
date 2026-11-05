@@ -1,4 +1,4 @@
-"""Regression tests for current-year invoices and meter-based annual forecast."""
+"""Regression tests for yearly ATS invoice history and meter-based forecasts."""
 from __future__ import annotations
 
 import sys
@@ -71,7 +71,7 @@ class TestAnnualCalculations(unittest.TestCase):
 
     def test_invoice_total_rejects_incomplete_amount(self):
         invoices = self.invoices + [invoice("2026-10-01T00:00:00", None)]
-        self.assertEqual(sensor_mod._invoice_total_for_year(invoices, 2026), (None, 3))
+        self.assertEqual(sensor_mod._invoice_total_for_year(invoices, 2026), (None, 4))
 
     def test_forecast_only_active_validated_effective_meter(self):
         value, attrs = sensor_mod._annualized_consumption(self.supplies, self.readings)
@@ -141,6 +141,79 @@ class TestAnnualCalculations(unittest.TestCase):
 
 
 @unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
+class TestInvoiceHistory(unittest.TestCase):
+    def setUp(self):
+        self.invoices = [
+            invoice("2026-08-07T00:00:00", 20.10, PaidAmount=20.10,
+                    ExpirationDate="2026-09-08T00:00:00", StatusText="Pagata"),
+            invoice("2026-01-04T00:00:00", 30.20, PaidAmount=0.0,
+                    ExpirationDate="2026-02-04T00:00:00", StatusText="Da pagare"),
+            invoice("2025-03-03T00:00:00", 10.0, PaidAmount=10.0,
+                    ExpirationDate="2025-04-03T00:00:00", PeriodTo="2026-01-31"),
+            invoice("2024-06-02T00:00:00", 5.5, PaidAmount=None,
+                    ExpirationDate=None),
+            invoice(None, 2.0, PaidAmount=2.0, StatusText="Senza data"),
+        ]
+
+    def test_group_by_issue_year_with_sorted_dates(self):
+        out = sensor_mod._invoice_history(self.invoices)
+        yearly = out["riepilogo_annuale"]
+        self.assertEqual(list(yearly), ["2026", "2025", "2024"])
+        self.assertEqual(yearly["2026"], {
+            "numero_fatture": 2, "totale_fatturato": 50.30, "totale_pagato": 20.10
+        })
+        self.assertEqual(yearly["2025"]["numero_fatture"], 1)
+        self.assertEqual(yearly["2025"]["totale_fatturato"], 10.0)
+        self.assertEqual(yearly["2024"]["totale_fatturato"], 5.5)
+        self.assertIsNone(yearly["2024"]["totale_pagato"])
+        self.assertEqual(out["fatture_senza_data_emissione"], 1)
+        history = out["storico_fatture"]
+        self.assertEqual(len(history), 5)
+        self.assertEqual(history[0], {
+            "anno": 2026, "importo_totale": 20.10,
+            "emissione": "07-08-2026", "scadenza": "08-09-2026",
+            "stato": "Pagata", "importo_pagato": 20.10,
+        })
+        self.assertEqual(history[1]["emissione"], "04-01-2026")
+        self.assertEqual(history[1]["importo_pagato"], 0.0)
+        self.assertEqual(history[-1]["anno"], None)
+        self.assertIsNone(history[-1]["emissione"])
+
+    def test_partial_annual_totals_remain_unknown(self):
+        items = [
+            invoice("2026-08-07", 12.3, PaidAmount=4.5),
+            invoice("2026-05-01", None, PaidAmount=None),
+            invoice("2025-04-10", 9.0, PaidAmount=9.0),
+        ]
+        out = sensor_mod._invoice_history(items)["riepilogo_annuale"]
+        self.assertEqual(out["2026"]["numero_fatture"], 2)
+        self.assertIsNone(out["2026"]["totale_fatturato"])
+        self.assertIsNone(out["2026"]["totale_pagato"])
+        self.assertEqual(out["2025"]["totale_fatturato"], 9.0)
+        self.assertEqual(sensor_mod._invoice_total_for_year(items, 2026), (None, 2))
+
+    def test_invalid_dates_and_non_finite_values_not_included_in_totals(self):
+        items = [
+            invoice("not-a-date", 12.0, PaidAmount=2),
+            invoice("2026-08-01", "nan", PaidAmount="inf"),
+        ]
+        out = sensor_mod._invoice_history(items)
+        self.assertEqual(out["fatture_senza_data_emissione"], 1)
+        self.assertEqual(out["storico_fatture"][0]["emissione"], "01-08-2026")
+        self.assertIsNone(out["storico_fatture"][0]["importo_totale"])
+        self.assertIsNone(out["storico_fatture"][0]["importo_pagato"])
+        self.assertIsNone(out["riepilogo_annuale"]["2026"]["totale_fatturato"])
+        self.assertIsNone(out["riepilogo_annuale"]["2026"]["totale_pagato"])
+
+    def test_empty_history(self):
+        self.assertEqual(sensor_mod._invoice_history([]), {
+            "riepilogo_annuale": {},
+            "storico_fatture": [],
+            "fatture_senza_data_emissione": 0,
+        })
+
+
+@unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class TestAnnualSensorValues(unittest.TestCase):
     def test_sensor_current_year_and_forecast_attributes(self):
         class Coordinator:
@@ -176,6 +249,49 @@ class TestAnnualSensorValues(unittest.TestCase):
         self.assertEqual(annual.extra_state_attributes["numero_fatture"], 3)
         self.assertEqual(forecast.native_value, 107.5)
         self.assertEqual(forecast.extra_state_attributes["stima_ats_m3_anno"], 142.0)
+
+    def test_existing_invoice_sensors_expose_history_and_formatted_dates(self):
+        class Coordinator:
+            data = {
+                "invoices": [
+                    invoice("2026-08-07T00:00:00", 20.1, PaidAmount=20.1,
+                            ExpirationDate="2026-09-08T00:00:00",
+                            StatusText="Pagata"),
+                    invoice("2025-05-06T00:00:00", 10.0, PaidAmount=0.0),
+                ],
+                "supplies": [],
+                "readings": [],
+            }
+            last_update_success = True
+
+            def async_add_listener(self, *args, **kwargs):
+                return lambda: None
+
+        class Entry:
+            entry_id = "test-ats"
+
+        count = sensor_mod.ATSAggregateSensor(
+            Coordinator(), Entry(), "invoices_total",
+            "Fatture presenti", "invoice_count"
+        )
+        detail = sensor_mod.ATSAggregateSensor(
+            Coordinator(), Entry(), "invoice_details",
+            "Dettagli fatture", "invoice_details"
+        )
+        self.assertEqual(count.native_value, 2)
+        attrs = count.extra_state_attributes
+        self.assertEqual(attrs["riepilogo_annuale"]["2026"]["numero_fatture"], 1)
+        self.assertEqual(attrs["riepilogo_annuale"]["2026"]["totale_fatturato"], 20.1)
+        self.assertEqual(attrs["storico_fatture"][0]["emissione"], "07-08-2026")
+        self.assertEqual(attrs["storico_fatture"][0]["scadenza"], "08-09-2026")
+        self.assertEqual(detail.native_value, 2)
+        legacy = detail.extra_state_attributes["fattura_1"]
+        self.assertEqual(legacy["emissione"], "2026-08-07T00:00:00")
+        self.assertEqual(legacy["scadenza"], "2026-09-08T00:00:00")
+        self.assertEqual(legacy["anno"], 2026)
+        self.assertEqual(legacy["emissione_formattata"], "07-08-2026")
+        self.assertEqual(legacy["scadenza_formattata"], "08-09-2026")
+
 
 
 if __name__ == "__main__":
