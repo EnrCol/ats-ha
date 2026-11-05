@@ -3,21 +3,26 @@
     "step": {
       "user": {
         "title": "Alto Trevigiano Servizi",
-        "description": "Inserisci i percorsi API completi relativi al portale autenticato e il cookie di sessione. Non inserire credenziali SPID.",
+        "description": "Usa username e password dello Sportello Online ATS; non usare credenziali SPID/CIE. Durante la beta i percorsi API delle utenze e fatture restano necessari. In alternativa puoi usare il cookie di sessione.",
         "data": {
           "base_url": "URL base del portale",
           "supply_path": "Percorso API utenze (inizia con /webapi/...)",
           "invoice_path": "Percorso API fatture (inizia con /webapi/...)",
-          "cookie": "Cookie HTTP della sessione ATS",
+          "cookie": "Cookie HTTP ATS (solo alternativa manuale)",
           "scan_interval": "Intervallo aggiornamento in minuti",
-          "reading_path": "Percorso API letture contatore (opzionale, /webapi/api/v1/reading-base/...)"
+          "reading_path": "Percorso API letture contatore (opzionale, /webapi/api/v1/reading-base/...)",
+          "username": "Username ATS",
+          "password": "Password ATS"
         }
       }
     },
     "error": {
       "invalid_url": "Inserisci un URL HTTPS valido.",
       "invalid_path": "Il percorso API deve iniziare con /.",
-      "required": "Questo campo è obbligatorio."
+      "required": "Questo campo è obbligatorio.",
+      "missing_credentials": "Inserisci sia username che password ATS.",
+      "missing_auth": "Inserisci username e password oppure il cookie di sessione.",
+      "invalid_interval": "Imposta un intervallo tra 5 e 1440 minuti."
     },
     "abort": {
       "already_configured": "L'integrazione ATS è già configurata."
@@ -31,10 +36,13 @@
           "base_url": "URL base del portale",
           "supply_path": "Percorso API utenze",
           "invoice_path": "Percorso API fatture",
-          "cookie": "Cookie HTTP della sessione ATS",
+          "cookie": "Cookie HTTP ATS (alternativa manuale)",
           "scan_interval": "Intervallo aggiornamento in minuti",
-          "reading_path": "Percorso API letture contatore (opzionale, /webapi/api/v1/reading-base/...)"
-        }
+          "reading_path": "Percorso API letture contatore (opzionale, /webapi/api/v1/reading-base/...)",
+          "username": "Username ATS",
+          "password": "Nuova password ATS (lascia vuoto per non modificarla)"
+        },
+        "description": "Lascia vuota la password per mantenere quella salvata. Inseriscila solo per cambiarla. Il cookie manuale rimane un'alternativa."
       }
     }
   }
