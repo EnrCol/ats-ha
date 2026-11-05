@@ -3,11 +3,11 @@
     "step": {
       "user": {
         "title": "Alto Trevigiano Servizi",
-        "description": "Usa username e password dello Sportello Online ATS; non usare credenziali SPID/CIE. Durante la beta i percorsi API delle utenze e fatture restano necessari. In alternativa puoi usare il cookie di sessione.",
+        "description": "Usa username e password dello Sportello Online ATS; non usare credenziali SPID/CIE. Cliente e forniture vengono rilevati automaticamente: lascia vuoti i percorsi API. I campi percorso e il cookie servono solo alla modalità manuale legacy.",
         "data": {
           "base_url": "URL base del portale",
-          "supply_path": "Percorso API utenze (inizia con /webapi/...)",
-          "invoice_path": "Percorso API fatture (inizia con /webapi/...)",
+          "supply_path": "Percorso API utenze (solo modalità manuale, inizia con /webapi/...)",
+          "invoice_path": "Percorso API fatture (solo modalità manuale, inizia con /webapi/...)",
           "cookie": "Cookie HTTP ATS (solo alternativa manuale)",
           "scan_interval": "Intervallo aggiornamento in minuti",
           "reading_path": "Percorso API letture contatore (opzionale, /webapi/api/v1/reading-base/...)",
@@ -31,7 +31,8 @@
       "missing_auth": "Inserisci username e password oppure il cookie di sessione.",
       "invalid_interval": "Imposta un intervallo tra 5 e 1440 minuti.",
       "invalid_auth": "Username o password ATS non accettati.",
-      "cannot_connect": "Impossibile verificare l'accesso ATS. Riprovare più tardi."
+      "cannot_connect": "Impossibile verificare l'accesso ATS. Riprovare più tardi.",
+      "discovery_failed": "Accesso riuscito ma non è stato possibile rilevare cliente e forniture automaticamente. Riprova o usa la modalità manuale."
     },
     "abort": {
       "already_configured": "L'integrazione ATS è già configurata.",

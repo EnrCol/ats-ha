@@ -12,7 +12,13 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
 
-from .auth import ATSInvalidCredentials, ATSLoginError, async_login
+from .auth import (
+    ATSDiscoveryError,
+    ATSInvalidCredentials,
+    ATSLoginError,
+    async_discover_identifiers,
+    async_login,
+)
 from homeassistant.helpers.selector import (
     TextSelector,
     TextSelectorConfig,
@@ -59,27 +65,46 @@ def _validate_input(data: dict) -> str | None:
         return "missing_credentials"
     if not username and not cookie:
         return "missing_auth"
-    for key in (CONF_SUPPLY_PATH, CONF_INVOICE_PATH):
-        if not str(data.get(key) or "").strip().startswith("/"):
+
+    # Automatic mode = credentials present and no manual supply path: the
+    # supply/invoice paths are discovered after login and are not required.
+    supply = str(data.get(CONF_SUPPLY_PATH) or "").strip()
+    auto = bool(username) and not supply
+    if not auto:
+        for key in (CONF_SUPPLY_PATH, CONF_INVOICE_PATH):
+            if not str(data.get(key) or "").strip().startswith("/"):
+                return "invalid_path"
+    # Any path that is supplied must still be well-formed.
+    for key in (CONF_SUPPLY_PATH, CONF_INVOICE_PATH, CONF_READING_PATH):
+        value = str(data.get(key) or "").strip()
+        if value and not value.startswith("/"):
             return "invalid_path"
-    reading = str(data.get(CONF_READING_PATH) or "").strip()
-    if reading and not reading.startswith("/"):
-        return "invalid_path"
     interval = data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     if not isinstance(interval, int) or not MIN_SCAN_INTERVAL <= interval <= MAX_SCAN_INTERVAL:
         return "invalid_interval"
     return None
 
 
-async def _validate_portal_credentials(username: str, password: str) -> str | None:
-    """Check credentials against ATS without logging or returning secrets."""
+async def _validate_portal_credentials(
+    username: str, password: str, *, discover: bool = False
+) -> str | None:
+    """Check credentials against ATS without logging or returning secrets.
+
+    When ``discover`` is set (automatic mode), also confirm the account exposes
+    the identifiers needed for self-configuration.
+    """
     try:
         async with aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=20)
         ) as session:
             await async_login(session, DEFAULT_BASE_URL, username, password)
+            if discover:
+                await async_discover_identifiers(session, DEFAULT_BASE_URL)
     except ATSInvalidCredentials:
         return "invalid_auth"
+    except ATSDiscoveryError:
+        # Subclass of ATSLoginError: must be caught before it.
+        return "discovery_failed"
     except (ATSLoginError, aiohttp.ClientError, TimeoutError):
         return "cannot_connect"
     return None
@@ -100,7 +125,10 @@ class ATSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 username = (user_input.get(CONF_USERNAME) or "").strip()
                 password = user_input.get(CONF_PASSWORD) or ""
                 if username:
-                    error = await _validate_portal_credentials(username, password)
+                    auto = not (user_input.get(CONF_SUPPLY_PATH) or "").strip()
+                    error = await _validate_portal_credentials(
+                        username, password, discover=auto
+                    )
                     if error:
                         errors["base"] = error
                 if not errors:
@@ -112,8 +140,8 @@ class ATSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     title="Alto Trevigiano Servizi",
                     data={
                         CONF_BASE_URL: user_input[CONF_BASE_URL].strip().rstrip("/"),
-                        CONF_SUPPLY_PATH: user_input[CONF_SUPPLY_PATH].strip(),
-                        CONF_INVOICE_PATH: user_input[CONF_INVOICE_PATH].strip(),
+                        CONF_SUPPLY_PATH: (user_input.get(CONF_SUPPLY_PATH) or "").strip(),
+                        CONF_INVOICE_PATH: (user_input.get(CONF_INVOICE_PATH) or "").strip(),
                         CONF_READING_PATH: (user_input.get(CONF_READING_PATH) or "").strip(),
                         CONF_COOKIE: (user_input.get(CONF_COOKIE) or "").strip(),
                         CONF_USERNAME: username,
@@ -130,8 +158,8 @@ class ATSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 TextSelectorConfig(autocomplete="username")
             ),
             vol.Optional(CONF_PASSWORD): _PASSWORD_FIELD,
-            vol.Required(CONF_SUPPLY_PATH): str,
-            vol.Required(CONF_INVOICE_PATH): str,
+            vol.Optional(CONF_SUPPLY_PATH): str,
+            vol.Optional(CONF_INVOICE_PATH): str,
             vol.Optional(CONF_READING_PATH, default=""): str,
             vol.Optional(CONF_COOKIE): str,
             vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(
@@ -204,8 +232,8 @@ class ATSOptionsFlow(config_entries.OptionsFlow):
                     title="",
                     data={
                         CONF_BASE_URL: proposed[CONF_BASE_URL].strip().rstrip("/"),
-                        CONF_SUPPLY_PATH: proposed[CONF_SUPPLY_PATH].strip(),
-                        CONF_INVOICE_PATH: proposed[CONF_INVOICE_PATH].strip(),
+                        CONF_SUPPLY_PATH: (proposed.get(CONF_SUPPLY_PATH) or "").strip(),
+                        CONF_INVOICE_PATH: (proposed.get(CONF_INVOICE_PATH) or "").strip(),
                         CONF_READING_PATH: (proposed.get(CONF_READING_PATH) or "").strip(),
                         CONF_COOKIE: (proposed.get(CONF_COOKIE) or "").strip(),
                         CONF_SCAN_INTERVAL: int(
@@ -216,8 +244,8 @@ class ATSOptionsFlow(config_entries.OptionsFlow):
 
         schema = vol.Schema({
             vol.Required(CONF_BASE_URL, default=current.get(CONF_BASE_URL, DEFAULT_BASE_URL)): str,
-            vol.Required(CONF_SUPPLY_PATH, default=current.get(CONF_SUPPLY_PATH, "")): str,
-            vol.Required(CONF_INVOICE_PATH, default=current.get(CONF_INVOICE_PATH, "")): str,
+            vol.Optional(CONF_SUPPLY_PATH, default=current.get(CONF_SUPPLY_PATH, "")): str,
+            vol.Optional(CONF_INVOICE_PATH, default=current.get(CONF_INVOICE_PATH, "")): str,
             vol.Optional(CONF_READING_PATH, default=current.get(CONF_READING_PATH, "")): str,
             vol.Optional(CONF_COOKIE, default=current.get(CONF_COOKIE, "")): str,
             vol.Optional(CONF_SCAN_INTERVAL, default=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)): vol.All(

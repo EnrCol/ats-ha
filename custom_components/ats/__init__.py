@@ -31,9 +31,10 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     data = {**entry.data, **entry.options}
     base_url = data[CONF_BASE_URL].rstrip("/")
-    supply_path = data[CONF_SUPPLY_PATH].strip()
-    invoice_path = data[CONF_INVOICE_PATH].strip()
-    reading_path = data.get(CONF_READING_PATH, "").strip()
+    # Paths are optional in automatic mode: they are discovered after login.
+    supply_path = (data.get(CONF_SUPPLY_PATH) or "").strip()
+    invoice_path = (data.get(CONF_INVOICE_PATH) or "").strip()
+    reading_path = (data.get(CONF_READING_PATH) or "").strip()
     cookie = data.get(CONF_COOKIE, "").strip()
     scan_minutes = int(data.get(ATS_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
 
@@ -63,6 +64,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         update_interval=timedelta(minutes=scan_minutes),
         username=username,
         password=password,
+        config_entry=entry,
     )
     try:
         await coordinator.async_config_entry_first_refresh()

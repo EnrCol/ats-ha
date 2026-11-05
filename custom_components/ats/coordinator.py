@@ -1,25 +1,47 @@
 from __future__ import annotations
 
 import logging
-import re
 from datetime import timedelta
 from typing import Any
 from urllib.parse import urljoin
 
 import aiohttp
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .auth import ATSInvalidCredentials, ATSLoginError, async_login
+from .auth import (
+    MODE_AUTO,
+    MODE_COOKIE,
+    MODE_CREDENTIALS,
+    ATSDiscoveryError,
+    ATSInvalidCredentials,
+    ATSLoginError,
+    async_discover_identifiers,
+    async_login,
+    path_has_session_token,
+    resolve_api_url,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-# Only replace a whole UUID path segment, never a customer or meter identifier.
-_SESSION_UUID_RE = re.compile(
-    r"(?<=/)[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}(?=/|\?|$)"
-)
+# The authenticated portal requests roughly the preceding year of readings.
+_READING_WINDOW_DAYS = 365
+
+
+def decide_mode(username: str | None, password: str | None, supply_path: str) -> str:
+    """Pick the running mode from the stored configuration.
+
+    - auto:        credentials, no manual supply path -> self-discovery
+    - credentials: credentials + manual paths (early beta installs)
+    - cookie:      legacy manual cookie + manual paths
+    """
+    if username and password:
+        return MODE_AUTO if not supply_path else MODE_CREDENTIALS
+    return MODE_COOKIE
+
 
 def _as_list(payload: Any) -> list[dict]:
     if isinstance(payload, list):
@@ -31,6 +53,22 @@ def _as_list(payload: Any) -> list[dict]:
                 return [item for item in value if isinstance(item, dict)]
         return [payload]
     return []
+
+
+def extract_supply_numbers(supplies: list[dict]) -> list[str]:
+    """Return the real SupplyNo values from a supply-light payload.
+
+    Identifiers are read only from the ``SupplyNo`` field; they are never
+    inferred from names or addresses. Order is preserved and duplicates are
+    dropped.
+    """
+    numbers: list[str] = []
+    for supply in supplies:
+        number = supply.get("SupplyNo")
+        if isinstance(number, str) and number.strip() and number not in numbers:
+            numbers.append(number.strip())
+    return numbers
+
 
 class ATSCoordinator(DataUpdateCoordinator):
     def __init__(
@@ -44,6 +82,7 @@ class ATSCoordinator(DataUpdateCoordinator):
         update_interval: timedelta,
         username: str | None = None,
         password: str | None = None,
+        config_entry: ConfigEntry | None = None,
     ) -> None:
         self.base_url = base_url
         self.supply_path = supply_path
@@ -52,20 +91,41 @@ class ATSCoordinator(DataUpdateCoordinator):
         self.cookie = cookie
         self.username = username
         self.password = password
+
+        # Mode is decided once from the stored configuration.
+        self.mode = decide_mode(username, password, supply_path)
+
         self._authenticated = False
         self._session: aiohttp.ClientSession | None = None
+        # Session token and customer code, refreshed on every login. Never
+        # logged: the token is an access credential embedded in the API path.
+        self._session_token: str | None = None
+        self._customer_code: str | None = None
+        # config_entry is required by DataUpdateCoordinator from HA 2026.8;
+        # passing it is accepted on earlier versions too (keyword since 2024.8).
         super().__init__(
             hass,
             _LOGGER,
             name="Alto Trevigiano Servizi",
             update_interval=update_interval,
+            config_entry=config_entry,
         )
 
+    @property
+    def uses_credentials(self) -> bool:
+        return self.mode in (MODE_AUTO, MODE_CREDENTIALS)
+
     async def _login(self) -> None:
-        """Obtain fresh authentication cookies using secrets.yaml credentials."""
+        """Log in and refresh the session token (and customer code in auto mode).
+
+        The token/customer are always taken from the authenticated page's
+        ``sol.conf`` (verified, robust), never from the HttpOnly cookie jar.
+        """
         if self._session is None or not self.username or not self.password:
             raise UpdateFailed("ATS: credenziali non configurate")
         self._authenticated = False
+        self._session_token = None
+        self._customer_code = None
         try:
             await async_login(self._session, self.base_url, self.username, self.password)
         except ATSInvalidCredentials:
@@ -75,36 +135,51 @@ class ATSCoordinator(DataUpdateCoordinator):
             diagnostic = f"ATS login: {err}"
             _LOGGER.warning("%s", diagnostic)
             raise UpdateFailed(diagnostic) from None
+
+        # Auto mode needs both token and customer code; credentials mode with
+        # manual paths only needs a fresh token when a path carries one.
+        needs_discovery = self.mode == MODE_AUTO or (
+            self.mode == MODE_CREDENTIALS and self._credentials_paths_need_token()
+        )
+        if needs_discovery:
+            try:
+                token, customer = await async_discover_identifiers(
+                    self._session, self.base_url
+                )
+            except ATSDiscoveryError as err:
+                diagnostic = f"ATS discovery: {err}"
+                _LOGGER.warning("%s", diagnostic)
+                raise UpdateFailed(diagnostic) from None
+            self._session_token = token
+            self._customer_code = customer
+
         self._authenticated = True
 
-    def _current_api_path(self, label: str, path: str) -> str:
-        """Substitute the fresh ATS session UUID, without persisting or logging it."""
-        if not (self.username and self.password) or label not in ("utenze", "fatture", "letture"):
-            return path
-        has_placeholder = "{session_uuid}" in path
-        if not has_placeholder and not _SESSION_UUID_RE.search(path):
-            return path
+    def _credentials_paths_need_token(self) -> bool:
+        return any(
+            path_has_session_token(path)
+            for path in (self.supply_path, self.invoice_path, self.reading_path)
+            if path
+        )
 
-        if self._session is None:
-            raise UpdateFailed("ATS: sessione HTTP non disponibile")
-
-        session_tokens = [
-            morsel.value
-            for morsel in self._session.cookie_jar
-            if morsel.key.startswith("sol-") and morsel.key.endswith("-at")
-        ]
-        if len(session_tokens) != 1 or not re.fullmatch(
-            r"[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}",
-            session_tokens[0],
-        ):
-            raise UpdateFailed("ATS: identificativo sessione corrente non disponibile")
-        if has_placeholder:
-            if path.count("{session_uuid}") != 1:
-                raise UpdateFailed("ATS: percorso letture con identificativi ambigui")
-            return path.replace("{session_uuid}", session_tokens[0])
-        if len(_SESSION_UUID_RE.findall(path)) != 1:
-            raise UpdateFailed("ATS: percorso API con identificativi ambigui")
-        return _SESSION_UUID_RE.sub(session_tokens[0], path, count=1)
+    def _resolve_url(self, label: str) -> str | None:
+        """Resolve the request path for ``label`` from the current session state."""
+        now = dt_util.now().date()
+        reading_from = (now - timedelta(days=_READING_WINDOW_DAYS)).strftime("%Y%m%d")
+        today = now.strftime("%Y%m%d")
+        return resolve_api_url(
+            label,
+            mode=self.mode,
+            session_token=self._session_token,
+            customer_code=self._customer_code,
+            supply_path=self.supply_path,
+            invoice_path=self.invoice_path,
+            reading_path=self.reading_path,
+            invoice_from="00000000",
+            invoice_to=today,
+            reading_from=reading_from,
+            reading_to=today,
+        )
 
     async def _async_update_data(self) -> dict[str, Any]:
         if self._session is None or self._session.closed:
@@ -112,45 +187,58 @@ class ATSCoordinator(DataUpdateCoordinator):
                 timeout=aiohttp.ClientTimeout(total=30),
             )
             self._authenticated = False
-        if self.username and self.password and not self._authenticated:
+        if self.uses_credentials and not self._authenticated:
             await self._login()
-        elif not (self.username and self.password) and not self.cookie:
-            raise UpdateFailed("ATS: aggiungi le credenziali in secrets.yaml o un cookie nelle opzioni")
+        elif self.mode == MODE_COOKIE and not self.cookie:
+            raise UpdateFailed(
+                "ATS: aggiungi le credenziali oppure un cookie nelle opzioni"
+            )
 
         headers = {
             "Accept": "application/json, text/plain, */*",
             "Referer": self.base_url + "/",
             "User-Agent": "HomeAssistant-ATS/0.4.0",
         }
-        if not (self.username and self.password):
-            # Legacy mode only. In automatic mode, aiohttp sends CookieJar cookies.
+        if self.mode == MODE_COOKIE:
+            # Legacy mode only. With credentials, aiohttp sends CookieJar cookies.
             headers["Cookie"] = self.cookie
 
         try:
-            supplies_payload, invoices_payload, readings_payload = await self._fetch_data(headers)
+            supplies_payload = await self._request_json("utenze", headers)
+            invoices_payload = await self._request_json("fatture", headers)
+            readings_payload = []
+            reading_url = self._resolve_url("letture")
+            if reading_url:
+                readings_payload = await self._request_json("letture", headers)
         except (UpdateFailed, ConfigEntryAuthFailed):
             raise
         except Exception:
             raise UpdateFailed("ATS: errore inatteso durante l'aggiornamento") from None
 
+        supplies = _as_list(supplies_payload)
         return {
-            "supplies": _as_list(supplies_payload),
+            "supplies": supplies,
+            "supply_numbers": extract_supply_numbers(supplies),
             "invoices": _as_list(invoices_payload),
             "readings": _as_list(readings_payload),
             "last_update": self.hass.loop.time(),
         }
 
-    async def _request_json(self, label: str, path: str, headers: dict) -> Any:
-        """Get JSON, renewing the authenticated session at most once per request."""
-        auto_auth = bool(self.username and self.password)
+    async def _request_json(self, label: str, headers: dict) -> Any:
+        """GET JSON for a label, renewing the session at most once per request.
+
+        The URL is resolved from the current session token on every attempt, so
+        a renewal mid-request automatically rebuilds the path with the new token.
+        """
+        auto_auth = self.uses_credentials
         for attempt in range(2 if auto_auth else 1):
+            url = self._resolve_url(label)
+            if url is None:
+                raise UpdateFailed(f"ATS richiesta {label}: percorso non configurato")
             status: int | None = None
             try:
                 async with self._session.get(
-                    urljoin(
-                        self.base_url + "/",
-                        self._current_api_path(label, path).lstrip("/"),
-                    ),
+                    urljoin(self.base_url + "/", url.lstrip("/")),
                     headers=headers,
                     allow_redirects=False,
                 ) as response:
@@ -195,36 +283,9 @@ class ATSCoordinator(DataUpdateCoordinator):
                 raise UpdateFailed(diagnostic) from None
         raise UpdateFailed(f"ATS richiesta {label}: nessuna risposta valida")
 
-    async def _fetch_data(self, headers: dict) -> tuple[Any, Any, Any]:
-        supplies = await self._request_json("utenze", self.supply_path, headers)
-        invoice_path = self.invoice_path
-        if self.username and self.password and "/invoice/" in invoice_path:
-            # Keep the tested history start; move the last YYYYMMDD to today.
-            dates = re.search(r"/\d{8}/(?P<end>\d{8})/?$", invoice_path)
-            if dates:
-                invoice_path = (
-                    invoice_path[:dates.start("end")]
-                    + dt_util.now().strftime("%Y%m%d")
-                    + invoice_path[dates.end("end"):]
-                )
-        invoices = await self._request_json("fatture", invoice_path, headers)
-        readings = []
-        reading_path = self.reading_path
-        if not reading_path and self.username and self.password:
-            # The authenticated portal requests the preceding 365 days.
-            # Keep a placeholder: _request_json resolves the current session
-            # token again after any automatic reauthentication.
-            end_date = dt_util.now().date()
-            start_date = end_date - timedelta(days=365)
-            reading_path = (
-                "/webapi/api/v1/reading-base/{session_uuid}/-1/"
-                f"{start_date:%Y%m%d}/{end_date:%Y%m%d}/"
-            )
-        if reading_path:
-            readings = await self._request_json("letture", reading_path, headers)
-        return supplies, invoices, readings
-
     async def async_shutdown(self) -> None:
         self._authenticated = False
+        self._session_token = None
+        self._customer_code = None
         if self._session and not self._session.closed:
             await self._session.close()

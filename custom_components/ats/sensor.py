@@ -89,7 +89,16 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
         readings = data.get("readings") or []
         if self._metric in ("last_reading_value", "last_reading_consumption", "last_reading_date", "reading_details"):
             if not readings:
-                self._attr_extra_state_attributes = {"nota": "Configura il percorso API /webapi/api/v1/reading-base/{id} nelle opzioni dell'integrazione ATS."}
+                if getattr(self.coordinator, "uses_credentials", False):
+                    # Automatic/credentials mode: readings are fetched on their
+                    # own; an empty result just means none in the period.
+                    self._attr_extra_state_attributes = {
+                        "nota": "Nessuna lettura del contatore disponibile per il periodo."
+                    }
+                else:
+                    self._attr_extra_state_attributes = {
+                        "nota": "Configura il percorso API /webapi/api/v1/reading-base/{id} nelle opzioni dell'integrazione ATS."
+                    }
                 return None
             def reading_date(item):
                 parsed = _date(item.get("Date"))
