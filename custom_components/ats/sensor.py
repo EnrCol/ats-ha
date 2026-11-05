@@ -232,9 +232,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
         ATSAggregateSensor(coordinator, entry, "invoices_paid", "Totale pagato", "paid_total", unit=CURRENCY_EURO),
         ATSAggregateSensor(coordinator, entry, "next_expiry_amount", "Importo prossima scadenza", "next_expiry_amount", unit=CURRENCY_EURO),
         ATSAggregateSensor(coordinator, entry, "next_expiry_date", "Prossima scadenza fattura", "next_expiry_date", device_class=SensorDeviceClass.DATE),
-        ATSAggregateSensor(coordinator, entry, "invoiced_consumption", "Consumo fatturato totale", "consumption"),
+        ATSAggregateSensor(coordinator, entry, "invoiced_consumption", "Consumo fatturato totale", "consumption", unit="m³"),
         ATSAggregateSensor(coordinator, entry, "last_invoice_status", "Stato ultima fattura", "last_status"),
-        ATSAggregateSensor(coordinator, entry, "active_supply_details", "Dettagli utenze attive", "supply_details"),
+        ATSAggregateSensor(coordinator, entry, "active_supply_details", "Dettagli utenze", "supply_details"),
         ATSAggregateSensor(coordinator, entry, "invoice_details", "Dettagli fatture", "invoice_details"),
         ATSAggregateSensor(coordinator, entry, "last_reading_value", "Ultima lettura contatore", "last_reading_value", unit="m³"),
         ATSAggregateSensor(coordinator, entry, "last_reading_consumption", "Consumo ultima lettura", "last_reading_consumption", unit="m³"),
@@ -254,6 +254,9 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_device_info = _device_info(coordinator, entry.entry_id)
         self._attr_native_unit_of_measurement = unit
+        # Display whole cubic metres while preserving full numeric sensor values.
+        if unit in ("m³", "m³/anno"):
+            self._attr_suggested_display_precision = 0
         self._attr_device_class = device_class
         if unit == CURRENCY_EURO or metric in ("active_supplies", "total_supplies", "invoice_count", "unpaid_count", "annual_consumption_forecast"):
             self._attr_state_class = SensorStateClass.MEASUREMENT
