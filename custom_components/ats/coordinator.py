@@ -8,10 +8,11 @@ from urllib.parse import urljoin
 
 import aiohttp
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .auth import ATSLoginError, async_login
+from .auth import ATSInvalidCredentials, ATSLoginError, async_login
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -67,6 +68,8 @@ class ATSCoordinator(DataUpdateCoordinator):
         self._authenticated = False
         try:
             await async_login(self._session, self.base_url, self.username, self.password)
+        except ATSInvalidCredentials:
+            raise ConfigEntryAuthFailed("ATS: credenziali non accettate") from None
         except ATSLoginError as err:
             # ATSLoginError contains only short, sanitized messages.
             diagnostic = f"ATS login: {err}"
@@ -125,7 +128,7 @@ class ATSCoordinator(DataUpdateCoordinator):
 
         try:
             supplies_payload, invoices_payload, readings_payload = await self._fetch_data(headers)
-        except UpdateFailed:
+        except (UpdateFailed, ConfigEntryAuthFailed):
             raise
         except Exception:
             raise UpdateFailed("ATS: errore inatteso durante l'aggiornamento") from None
@@ -171,7 +174,7 @@ class ATSCoordinator(DataUpdateCoordinator):
                         raise UpdateFailed(diagnostic)
                     response.raise_for_status()
                     return await response.json(content_type=None)
-            except UpdateFailed:
+            except (UpdateFailed, ConfigEntryAuthFailed):
                 raise
             except Exception as err:
                 # No exception text: aiohttp errors can contain private URLs.
