@@ -14,6 +14,13 @@
           "username": "Username ATS",
           "password": "Password ATS"
         }
+      },
+      "reauth_confirm": {
+        "title": "Riautenticazione Alto Trevigiano Servizi",
+        "description": "La password dello Sportello Online ATS non è più accettata. Inserisci la password aggiornata per lo stesso username.",
+        "data": {
+          "password": "Nuova password ATS"
+        }
       }
     },
     "error": {
@@ -22,10 +29,14 @@
       "required": "Questo campo è obbligatorio.",
       "missing_credentials": "Inserisci sia username che password ATS.",
       "missing_auth": "Inserisci username e password oppure il cookie di sessione.",
-      "invalid_interval": "Imposta un intervallo tra 5 e 1440 minuti."
+      "invalid_interval": "Imposta un intervallo tra 5 e 1440 minuti.",
+      "invalid_auth": "Username o password ATS non accettati.",
+      "cannot_connect": "Impossibile verificare l'accesso ATS. Riprovare più tardi."
     },
     "abort": {
-      "already_configured": "L'integrazione ATS è già configurata."
+      "already_configured": "L'integrazione ATS è già configurata.",
+      "reauth_not_supported": "Questa configurazione usa soltanto un cookie manuale; modifica il cookie nelle opzioni.",
+      "reauth_successful": "Credenziali ATS aggiornate."
     }
   },
   "options": {
@@ -42,7 +53,7 @@
           "username": "Username ATS",
           "password": "Nuova password ATS (lascia vuoto per non modificarla)"
         },
-        "description": "Lascia vuota la password per mantenere quella salvata. Inseriscila solo per cambiarla. Il cookie manuale rimane un'alternativa."
+        "description": "Puoi cambiare intervallo e percorsi API. Le credenziali sono memorizzate nella configurazione dell'integrazione, non nelle opzioni."
       }
     }
   }
