@@ -28,6 +28,7 @@ Everything is exposed as sensors under a single device named **ATS**.
 | `sensor.ats_dettagli_utenze_attive` | Attributes `utenza_1`, `utenza_2`… (status, service, address, meter, balance, estimated yearly consumption) |
 | `sensor.ats_fatture_presenti` / `sensor.ats_fatture_non_pagate` | Number of invoices and unpaid invoices |
 | `sensor.ats_totale_fatture` / `sensor.ats_totale_pagato` / `sensor.ats_totale_residuo_da_pagare` | Totals in € |
+| `sensor.ats_totale_fatture_anno_corrente` | Sum of invoices issued in the current calendar year (€), with year and invoice count as attributes |
 | `sensor.ats_prossima_scadenza_fattura` / `sensor.ats_importo_prossima_scadenza` | Due date and remaining amount of the next open invoice |
 | `sensor.ats_stato_ultima_fattura` | Latest invoice status, with number, period, amount and remaining balance as attributes |
 | `sensor.ats_consumo_fatturato_totale` | Sum of the consumption on the invoices |
@@ -35,8 +36,15 @@ Everything is exposed as sensors under a single device named **ATS**.
 | `sensor.ats_ultima_lettura_contatore` | Latest reading in m³ |
 | `sensor.ats_consumo_ultima_lettura` / `sensor.ats_data_ultima_lettura` | Consumption and date of the latest reading |
 | `sensor.ats_dettagli_letture_contatore` | Attributes `lettura_1`, `lettura_2`… with the readings history |
+| `sensor.ats_previsione_consumo_annuo` | Annualized consumption in m³/year from the latest two valid effective readings per active meter; ATS's own estimate is available in attributes |
 
 With automatic login, invoices use an open-ended historical start date and readings use a rolling 365-day API window. In manual cookie mode, the readings path is optional.
+
+### Annual calculations
+
+- **Current-year invoice total:** filtered by `EmissionDate` (issue date), not due date or billing period. Returns `€0` when invoices exist but none were issued this year. Returns `unknown` when the invoice list is empty or a current-year invoice amount is invalid.
+- **Annual consumption forecast:** for each active supply meter, select the two latest distinct-date effective (`Effective=true`), positively validated readings. Formula: `(new reading - old reading) × 365 / elapsed days`. When multiple meters are active, sum **only if every active meter has a valid pair**. Exclude ceased supplies; insufficient or decreasing readings give `unknown`.
+- The result is a **historical projection**, not live consumption. Attributes include source reading dates, sample period, and the supplier's own annual estimate `EstimatedAnnualConsumptyion`. Older readings may make the projection unrepresentative of current consumption.
 
 ## Installation
 
@@ -47,6 +55,10 @@ With automatic login, invoices use an open-ended historical start date and readi
 1. In HACS open the ⋮ menu → **Custom repositories**.
 2. Paste this repository's URL, choose the **Integration** category and click **Add**.
 3. Search for **Alto Trevigiano Servizi (ATS)**, download it and **restart Home Assistant**.
+
+### Beta via Marketplace
+
+For our fork `EnrCol/ats-ha`, enable **pre-releases** for the repository, then use **Install another version** to select the desired beta tag. The fork's `main` does not yet include automatic onboarding: **do not install the old commit `2fdb8b2`**.
 
 ### Manual (to test this branch)
 
