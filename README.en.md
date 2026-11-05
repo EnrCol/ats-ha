@@ -6,6 +6,11 @@
 
 > Not affiliated with or endorsed by Alto Trevigiano Servizi. It uses the same requests the portal makes in your browser, so it may stop working if the portal changes.
 
+> **Experimental branch `feat/public-ats-onboarding`.** This is not a public release yet.
+> The UI now accepts ATS portal username/password, but **automatic supply discovery
+> is not implemented yet**. Supplies and invoices API paths are still required.
+> Do not replace a working production installation with this branch.
+
 ## What it does
 
 - Supplies (`supply-light`): status, meter and supply data.
@@ -30,7 +35,7 @@ Everything is exposed as sensors under a single device named **ATS**.
 | `sensor.ats_consumo_ultima_lettura` / `sensor.ats_data_ultima_lettura` | Consumption and date of the latest reading |
 | `sensor.ats_dettagli_letture_contatore` | Attributes `lettura_1`, `lettura_2`… with the readings history |
 
-The reading sensors stay `unknown` until you set the readings path.
+With automatic login, readings use a rolling 365-day API window. With a manual cookie, the readings path is still required.
 
 ## Installation
 
@@ -50,7 +55,7 @@ Copy the `custom_components/ats` folder to `/config/custom_components/ats` and r
 
 ## How to find the configuration values
 
-The integration does not ask for a username and password: it uses the API request paths and the session cookie the portal uses while you are logged in. You get both from your browser's developer tools (the labels below are from Chrome; Edge and Firefox are very similar).
+This experimental branch accepts an ATS portal **username and password** and renews the session, or a **manual HTTP cookie** as a fallback. In both cases you still need to obtain supplies and invoices API paths from the portal.
 
 1. Log in to the ATS customer area in your browser as usual.
 2. Press **F12** (or right-click → **Inspect**) and open the **Network** tab.
@@ -65,7 +70,7 @@ The integration does not ask for a username and password: it uses the API reques
    | Readings | `…/webapi/api/v1/reading-base/<code>` | Readings API path (optional) |
 
 6. From the URL copy **only the part starting with `/webapi/`**, query parameters included (for example `/webapi/api/v1/reading-base/<code>`). The base URL `https://sgc.altotrevigianoservizi.it` is already pre-filled.
-7. Still under **Headers**, scroll to **Request Headers** and copy the value of the **cookie** row (for example `ASP.NET_SessionId=…`), all of it, including the name before the `=` sign. It goes in the **Session HTTP cookie** field.
+7. If using **username/password**, do not copy any cookies. For **manual cookie mode only**, use the request's Cookie header in the corresponding form field. Never share session cookies.
 8. Check that the request is a `GET` returning `200 OK`, and that the **Response** or **Preview** tab shows JSON with your data.
 
 The update interval is in minutes (5 to 1440, default 60).
@@ -74,14 +79,14 @@ The update interval is in minutes (5 to 1440, default 60).
 
 ## Session lifetime
 
-The integration uses the portal's session cookie and implements neither automatic SPID login renewal nor HMAC signing. So far, in real use, the cookie has stayed valid over time without needing renewal, but its lifetime is **not documented by the portal** and is not guaranteed: the session may end, for example after logging out of the portal, a revocation or a server-side expiry.
+With ATS portal username/password the integration signs in automatically and retries once after a session denial. It does not implement SPID/CIE or HMAC signing. Session lifetimes and compatibility with other accounts still require testing.
 
-If it stops working, the update fails and Home Assistant shows the integration's update error. Repeat steps 1–7 to get a fresh cookie and update it in **Settings → Devices & services → ATS → Configure**: the integration reloads by itself. To avoid invalidating the cookie in use, do not log out of the portal in the browser you copied it from.
+If automatic login stops working, check your ATS credentials and API paths. In manual cookie mode, a revoked or expired cookie must be replaced in the options form.
 
 ## Security
 
-- Do not enter SPID credentials or your portal password.
-- The cookie is stored in Home Assistant's configuration, which is not an encrypted secret store.
+- Use only **ATS online portal credentials**, not SPID/CIE credentials.
+- ATS passwords and manual cookies are stored in Home Assistant's config-entry data; this is not an encrypted password manager. Protect backups and the HA installation.
 - The integration does not write the cookie to the logs.
 - The portal returns a `deprecated` header saying requests without an HMAC signature will eventually stop being accepted. This version does **not** implement HMAC.
 
