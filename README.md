@@ -7,12 +7,10 @@ Integrazione **non ufficiale** per Home Assistant che legge dall'area utente di 
 > Non è affiliata né approvata da Alto Trevigiano Servizi. Usa le stesse richieste che il portale esegue nel tuo browser, quindi può smettere di funzionare se il portale cambia.
 
 > **Ramo sperimentale `feat/public-ats-onboarding`.** Non è ancora una release pubblica.
-> Il login con username/password dello Sportello Online ATS è ora previsto dalla UI,
-> ma **l'individuazione automatica delle forniture non è ancora implementata**:
-> occorre ancora configurare i percorsi API di utenze e fatture.
+> La modalità automatica usa **solo username e password dello Sportello Online ATS**: identifica il cliente e le forniture senza chiedere cookie o percorsi API.
 > Non sostituire una installazione live funzionante con questo ramo.
 >
-> Anche con username e password, questa beta supporta **una sola configurazione ATS per istanza Home Assistant**, finché non sarà verificata l'identificazione automatica dell'account.
+> È supportata **una sola configurazione ATS per istanza Home Assistant**. Più forniture appartenenti allo stesso cliente vengono aggregate; più clienti distinti sotto lo stesso login non sono ancora supportati.
 
 ## Cosa fa
 
@@ -38,7 +36,7 @@ Tutto viene esposto come sensori sotto un unico dispositivo chiamato **ATS**.
 | `sensor.ats_consumo_ultima_lettura` / `sensor.ats_data_ultima_lettura` | Consumo e data dell'ultima lettura |
 | `sensor.ats_dettagli_letture_contatore` | Attributi `lettura_1`, `lettura_2`… con lo storico delle letture |
 
-Con login automatico le letture vengono richieste su un intervallo mobile di 365 giorni; con cookie manuale serve configurare il relativo percorso API.
+Con login automatico le fatture vengono richieste senza data iniziale fissa e le letture su una finestra mobile di 365 giorni; con cookie manuale il percorso API delle letture è facoltativo.
 
 ## Installazione
 
@@ -54,31 +52,32 @@ Copia la cartella `custom_components/ats` in `/config/custom_components/ats` e r
 
 ### Aggiunta dell'integrazione
 
-**Impostazioni → Dispositivi e servizi → Aggiungi integrazione → Alto Trevigiano Servizi (ATS)**, poi compila il modulo con i dati della sezione seguente.
+**Impostazioni → Dispositivi e servizi → Aggiungi integrazione → Alto Trevigiano Servizi (ATS)**. Per la modalità automatica inserisci username e password dello Sportello Online ATS, lascia vuoti i percorsi API e il cookie, quindi conferma. Non usare SPID/CIE.
 
-## Come trovare i dati di configurazione
+## Configurazione automatica (consigliata)
 
-Nel ramo sperimentale puoi scegliere: **username e password ATS** con sessione aggiornata automaticamente, oppure **cookie HTTP manuale** come nella versione originale. In entrambi i casi i percorsi delle richieste API di utenze e fatture vanno ancora ricavati dal portale. I dati si trovano negli strumenti sviluppatore del browser.
+1. Accedi a Home Assistant e apri la procedura di aggiunta dell'integrazione ATS.
+2. Lascia l'**URL base** precompilato (`https://sgc.altotrevigianoservizi.it`).
+3. Inserisci **username e password** dello Sportello Online ATS.
+4. Lascia **vuoti** `Percorso API utenze`, `Percorso API fatture`, `Percorso API letture` e `Cookie`.
+5. Conferma: l'integrazione verifica il login, recupera dall'HTML autenticato il token di sessione e il codice cliente, quindi interroga le API delle forniture, delle fatture e delle letture.
 
-1. Accedi all'area utente del portale ATS dal browser, come fai di solito.
-2. Premi **F12** (o tasto destro → **Ispeziona**) e apri la scheda **Rete**.
-3. Nel filtro scegli **Fetch/XHR**, così vedi solo le chiamate API.
-4. Con gli strumenti aperti, naviga tra le sezioni del portale: **utenze/forniture**, **fatture** e **letture del contatore**. Ognuna lancia la sua richiesta. Se la lista è vuota, ricarica la pagina con la scheda Rete già aperta.
-5. Per ogni richiesta, cliccala e nella scheda **Intestazioni** guarda **URL di richiesta**. Ti servono queste tre:
+L'elenco delle forniture include anche quelle cessate; le fatture e le letture vengono aggregate per le forniture del cliente selezionato. Non è necessario copiare dati dagli strumenti sviluppatore. È previsto il rinnovo del login quando il portale rifiuta la sessione.
 
-   | Richiesta | Come la riconosci | Campo nel modulo |
-   |---|---|---|
-   | Utenze | l'URL contiene `supply-light` | Percorso API utenze |
-   | Fatture | l'URL contiene `invoice` | Percorso API fatture |
-   | Letture | `…/webapi/api/v1/reading-base/<codice>` | Percorso API letture (facoltativo) |
+## Configurazione manuale (legacy)
 
-6. Dall'URL copia **solo la parte che inizia con `/webapi/`**, parametri compresi (per esempio `/webapi/api/v1/reading-base/<codice>`). L'indirizzo base `https://sgc.altotrevigianoservizi.it` è già precompilato.
-7. Se utilizzi **username e password ATS**, non devi copiare cookie. Solo se preferisci la modalità manuale, nella sezione **Intestazioni** copia il valore del cookie della richiesta e inseriscilo nel relativo campo. Non condividerlo mai.
-8. Controlla che la richiesta sia `GET` con codice `200 OK` e che nella scheda **Risposta** o **Anteprima** compaia un JSON con i tuoi dati.
+Usala solo per mantenere un'installazione precedente o se la configurazione automatica non è applicabile. Senza username/password servono un **cookie HTTP manuale** e i **percorsi API utenze e fatture**; il percorso letture è facoltativo. Con credenziali e percorsi manuali resta disponibile una modalità di compatibilità che rinnova il token di sessione.
+
+Per individuare i percorsi:
+
+1. Accedi al portale ATS nel browser e apri **Strumenti sviluppatore → Rete → Fetch/XHR**.
+2. Visita le pagine **Forniture**, **Fatture** e, se necessario, **Letture**.
+3. Copia solo la parte dell'URL che parte da `/webapi/` per le rispettive richieste `supply-light`, `invoice`, `reading-base`; non includere il dominio. Gli URL possono contenere token di sessione: trattali come credenziali.
+4. Nella sola modalità cookie, inserisci anche il valore dell'intestazione `Cookie` nel campo dedicato. I cookie scadono e vanno sostituiti manualmente.
 
 L'intervallo di aggiornamento è in minuti (da 5 a 1440, predefinito 60).
 
-> I percorsi contengono codici legati al tuo account e il cookie equivale a una password. Non incollarli in issue, forum, log o screenshot. Se devi mostrare qualcosa, oscura i codici.
+> **Privacy:** password, cookie, token AT negli URL e codici cliente sono dati riservati. Non pubblicarli in issue, log o screenshot. Oscurali prima di condividere diagnostiche.
 
 ## Durata della sessione
 
@@ -90,19 +89,21 @@ Se ATS rifiuta esplicitamente username o password, Home Assistant avvia la proce
 
 - Usa esclusivamente le credenziali di accesso **allo Sportello Online ATS**; non inserire credenziali SPID/CIE.
 - Password ATS e cookie sono memorizzati nella configurazione Home Assistant; non sono cifrati come in un password manager. Proteggi backup, file e accesso all'istanza.
-- L'integrazione non scrive il cookie nei log.
+- L'integrazione evita di scrivere cookie, password e token AT nei messaggi di log ed errore. Il token AT presente nell'URL API è una credenziale di accesso: non condividere URL completi.
 - Il portale segnala con un header `deprecated` che in futuro le richieste senza firma HMAC non saranno più accettate. Questa versione **non** implementa HMAC.
 
 ## Limiti
 
 - I campi sono letti dai JSON osservati nel portale; l'integrazione non inventa altri endpoint e non scarica i PDF delle fatture.
-- Che una richiesta funzioni nel browser non garantisce da sola che la sessione sia riutilizzabile da Home Assistant.
+- La modalità automatica dipende dall'oggetto `sol.conf` nell'HTML autenticato di ATS: se il portale cambia, la scoperta può smettere di funzionare.
+- La configurazione resta limitata a un cliente per istanza Home Assistant; la selezione di più clienti sotto un solo login non è supportata.
 - I valori assenti restano `unknown`, non vengono sostituiti con zero.
 - Il consumo fatturato totale somma il campo `Consumption` delle fatture ricevute: può coprire più periodi e non è una lettura cumulativa del contatore.
 
 ## Risoluzione problemi
 
-- **Errore all'aggiunta o entità non disponibili:** controlla percorsi API completi, credenziali ATS oppure cookie manuale, e stato del portale.
+- **Errore nella configurazione automatica:** verifica le credenziali dello Sportello Online ATS e la disponibilità del portale. Se compare `discovery_failed`, ATS potrebbe aver modificato l'HTML o i dati della sessione.
+- **Modalità manuale:** controlla cookie e percorsi API; se la sessione scade, aggiorna il cookie.
 - **Sensori delle letture `unknown`:** controlla la risposta API; con cookie manuale configura anche il percorso delle letture.
 - **Gli ID non sono `sensor.ats_…`:** se avevi installato una versione precedente, gli ID già registrati restano quelli vecchi. Dalla pagina del dispositivo, menu ⋮, usa **Ricrea ID entità**.
 - Per i log, attiva il livello debug per `custom_components.ats` e non condividere righe che contengono cookie o codici.
