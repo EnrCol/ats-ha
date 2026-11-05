@@ -11,6 +11,8 @@ Integrazione **non ufficiale** per Home Assistant che legge dall'area utente di 
 > ma **l'individuazione automatica delle forniture non è ancora implementata**:
 > occorre ancora configurare i percorsi API di utenze e fatture.
 > Non sostituire una installazione live funzionante con questo ramo.
+>
+> Anche con username e password, questa beta supporta **una sola configurazione ATS per istanza Home Assistant**, finché non sarà verificata l'identificazione automatica dell'account.
 
 ## Cosa fa
 
@@ -82,7 +84,7 @@ L'intervallo di aggiornamento è in minuti (da 5 a 1440, predefinito 60).
 
 Con **username e password ATS** l'integrazione esegue il login al portale e riprova dopo un rifiuto della sessione. Questo meccanismo non implementa il login SPID/CIE né la firma HMAC. La durata della sessione non è documentata e il comportamento su altri account richiede ulteriori test.
 
-Se il login automatico fallisce, controlla credenziali e percorsi nelle opzioni dell'integrazione. In modalità cookie manuale, un cookie revocato o scaduto deve essere sostituito nelle opzioni.
+Se ATS rifiuta esplicitamente username o password, Home Assistant avvia la procedura di **riautenticazione**: inserisci soltanto la nuova password e l'integrazione ricarica i dati conservando le entità. Errori di rete e modifiche al portale non avviano una richiesta di password. In modalità cookie manuale, un cookie revocato o scaduto deve essere sostituito nelle opzioni.
 
 ## Sicurezza
 
