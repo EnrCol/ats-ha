@@ -263,6 +263,35 @@ class TestResolveApiUrl(unittest.TestCase):
                 supply_path="/x/{session_uuid}/",
             )
 
+    def test_credentials_literal_manual_paths_without_session_token(self):
+        # Existing manual URLs without a UUID must not require sol.conf.
+        for label, expected in (
+            ("utenze", "/webapi/static/supplies/"),
+            ("fatture", "/webapi/static/invoices/"),
+            ("letture", "/webapi/static/readings/"),
+        ):
+            with self.subTest(label=label):
+                self.assertEqual(
+                    auth.resolve_api_url(
+                        label, mode=auth.MODE_CREDENTIALS,
+                        session_token=None, customer_code=None,
+                        supply_path="/webapi/static/supplies/",
+                        invoice_path="/webapi/static/invoices/",
+                        reading_path="/webapi/static/readings/",
+                    ),
+                    expected,
+                )
+
+    def test_credentials_reading_fallback_requires_discovered_token(self):
+        with self.assertRaises(auth.ATSLoginError):
+            auth.resolve_api_url(
+                "letture", mode=auth.MODE_CREDENTIALS,
+                session_token=None, customer_code=None,
+                supply_path="/webapi/static/supplies/",
+                invoice_path="/webapi/static/invoices/",
+                reading_path="",
+            )
+
     def test_cookie_legacy_literal(self):
         self.assertEqual(
             auth.resolve_api_url(
