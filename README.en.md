@@ -26,13 +26,13 @@ Everything is exposed as sensors under a single device named **ATS**.
 |---|---|
 | `sensor.ats_utenze_attive` / `sensor.ats_utenze_totali` | Active and total supplies |
 | `sensor.ats_dettagli_utenze_attive` | Attributes `utenza_1`, `utenza_2`… (status, service, address, meter, balance, estimated yearly consumption) |
-| `sensor.ats_fatture_presenti` / `sensor.ats_fatture_non_pagate` | Number of invoices and unpaid invoices |
+| `sensor.ats_fatture_presenti` / `sensor.ats_fatture_non_pagate` | Invoice counts; `fatture_presenti` also exposes `riepilogo_annuale` and `storico_fatture` attributes |
 | `sensor.ats_totale_fatture` / `sensor.ats_totale_pagato` / `sensor.ats_totale_residuo_da_pagare` | Totals in € |
 | `sensor.ats_totale_fatture_anno_corrente` | Sum of invoices issued in the current calendar year (€), with year and invoice count as attributes |
 | `sensor.ats_prossima_scadenza_fattura` / `sensor.ats_importo_prossima_scadenza` | Due date and remaining amount of the next open invoice |
 | `sensor.ats_stato_ultima_fattura` | Latest invoice status, with number, period, amount and remaining balance as attributes |
 | `sensor.ats_consumo_fatturato_totale` | Sum of the consumption on the invoices |
-| `sensor.ats_dettagli_fatture` | Attributes `fattura_1`, `fattura_2`… with every field of each invoice |
+| `sensor.ats_dettagli_fatture` | Existing `fattura_1`, `fattura_2`… ISO-date attributes retained; new `emissione_formattata` / `scadenza_formattata` dates use `DD-MM-YYYY` |
 | `sensor.ats_ultima_lettura_contatore` | Latest reading in m³ |
 | `sensor.ats_consumo_ultima_lettura` / `sensor.ats_data_ultima_lettura` | Consumption and date of the latest reading |
 | `sensor.ats_dettagli_letture_contatore` | Attributes `lettura_1`, `lettura_2`… with the readings history |
@@ -40,8 +40,10 @@ Everything is exposed as sensors under a single device named **ATS**.
 
 With automatic login, invoices use an open-ended historical start date and readings use a rolling 365-day API window. In manual cookie mode, the readings path is optional.
 
-### Annual calculations
+### Financial history and annual calculations
 
+- **Invoice count:** the state remains the total number of invoices returned by ATS. The `riepilogo_annuale` attribute groups invoices by **issue year**, with `numero_fatture`, `totale_fatturato` and `totale_pagato`; `storico_fatture` lists each invoice in descending date order with year, amount, issue/due dates, status and paid amount when available. New display dates are `DD-MM-YYYY`. `fatture_senza_data_emissione` counts invoices without a usable issue date.
+- **Missing values:** when an invoice lacks a total or paid amount, the respective annual total is `null`, rather than a misleading partial sum. Invoices without an issue date remain in the detailed history but are not included in annual totals. The existing `Dettagli fatture` attributes and ISO dates remain unchanged, with additional `anno`, `emissione_formattata` and `scadenza_formattata` fields.
 - **Current-year invoice total:** filtered by `EmissionDate` (issue date), not due date or billing period. Returns `€0` when invoices exist but none were issued this year. Returns `unknown` when the invoice list is empty or a current-year invoice amount is invalid.
 - **Annual consumption forecast:** for each active supply meter, select the two latest distinct-date effective (`Effective=true`), positively validated readings. Formula: `(new reading - old reading) × 365 / elapsed days`. When multiple meters are active, sum **only if every active meter has a valid pair**. Exclude ceased supplies; insufficient or decreasing readings give `unknown`.
 - The result is a **historical projection**, not live consumption. Attributes include source reading dates, sample period, and the supplier's own annual estimate `EstimatedAnnualConsumptyion`. Older readings may make the projection unrepresentative of current consumption.
