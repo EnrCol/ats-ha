@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+from math import isfinite
 from typing import Any
+
+from homeassistant.util import dt as dt_util
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -43,6 +46,118 @@ def _first(d: dict, *keys):
             return d[key]
     return None
 
+
+def _invoice_total_for_year(invoices: list[dict], year: int) -> tuple[float | None, int]:
+    """Total invoice amounts by issue date, not by billing period or due date."""
+    if not invoices:
+        return None, 0
+    amount = 0.0
+    count = 0
+    for invoice in invoices:
+        issued = _date(invoice.get("EmissionDate"))
+        if issued is None or issued.year != year:
+            continue
+        value = _number(invoice.get("TotalAmount"))
+        if value is None or not isfinite(value):
+            # A partial sum would be misleading when an issued invoice has no amount.
+            return None, count
+        count += 1
+        amount += value
+    return round(amount, 2), count
+
+
+def _annualized_consumption(
+    supplies: list[dict], readings: list[dict]
+) -> tuple[float | None, dict]:
+    """Annualize effective, positively validated readings for every active meter.
+
+    All active meters must have two dated readings with valid nondecreasing
+    values. Never mix a ceased meter or two different meter numbers.
+    """
+    active = [
+        supply for supply in supplies
+        if supply.get("Active") is True
+        or str(supply.get("StateDescription", "")).strip().lower() == "attiva"
+    ]
+    estimated = [_number(s.get("EstimatedAnnualConsumptyion")) for s in active]
+    estimated_total = (
+        round(sum(estimated), 1)
+        if active and all(v is not None and isfinite(v) for v in estimated)
+        else None
+    )
+    details: dict = {
+        "metodo": "ultime_due_letture_effettive_validate_per_contatore",
+        "stima_ats_m3_anno": estimated_total,
+        "contatori_attivi": len(active),
+    }
+    if not active:
+        details["nota"] = "Nessuna fornitura attiva disponibile."
+        return None, details
+
+    meters = {
+        str(s.get("MeterNo") or "").strip() for s in active
+    }
+    if "" in meters:
+        details["nota"] = "Identificativo contatore mancante su una fornitura attiva."
+        return None, details
+
+    totals = []
+    breakdown = []
+    for meter in sorted(meters):
+        valid = []
+        for reading in readings:
+            if str(reading.get("MeterNo") or "").strip() != meter:
+                continue
+            if reading.get("Effective") is not True:
+                continue
+            if str(reading.get("ValidationResult") or "").strip().lower() not in (
+                "positiva", "positivo", "positive"
+            ):
+                continue
+            date = _date(reading.get("Date"))
+            value = _number(reading.get("Value"))
+            if date is None or value is None or not isfinite(value) or value < 0:
+                continue
+            valid.append((date.date(), value))
+        valid.sort(reverse=True, key=lambda item: item[0])
+        # Duplicate readings from the same date do not form an interval.
+        distinct = []
+        for date, value in valid:
+            if not distinct or date != distinct[-1][0]:
+                distinct.append((date, value))
+            if len(distinct) == 2:
+                break
+        if len(distinct) < 2:
+            details["nota"] = "Servono due letture effettive validate per ogni contatore attivo."
+            return None, details
+        (recent_date, recent_value), (older_date, older_value) = distinct
+        days = (recent_date - older_date).days
+        delta = recent_value - older_value
+        if days <= 0 or delta < 0:
+            details["nota"] = "Letture non confrontabili: intervallo o valore del contatore non valido."
+            return None, details
+        projected = delta * 365 / days
+        totals.append(projected)
+        breakdown.append({
+            "contatore": meter,
+            "data_prima_lettura": older_date.isoformat(),
+            "data_ultima_lettura": recent_date.isoformat(),
+            "periodo_giorni": days,
+            "consumo_periodo_m3": round(delta, 2),
+            "previsione_m3_anno": round(projected, 1),
+        })
+
+    details["dettaglio_contatori"] = breakdown
+    if len(breakdown) == 1:
+        details.update({
+            "data_prima_lettura": breakdown[0]["data_prima_lettura"],
+            "data_ultima_lettura": breakdown[0]["data_ultima_lettura"],
+            "periodo_giorni": breakdown[0]["periodo_giorni"],
+            "consumo_periodo_m3": breakdown[0]["consumo_periodo_m3"],
+        })
+    return round(sum(totals), 1), details
+
+
 async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([
@@ -52,6 +167,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         ATSAggregateSensor(coordinator, entry, "invoices_unpaid", "Fatture non pagate", "unpaid_count"),
         ATSAggregateSensor(coordinator, entry, "invoices_remaining", "Totale residuo da pagare", "remaining_total", unit=CURRENCY_EURO),
         ATSAggregateSensor(coordinator, entry, "invoices_amount", "Totale fatture", "total_amount", unit=CURRENCY_EURO),
+        ATSAggregateSensor(coordinator, entry, "invoices_current_year", "Totale fatture anno corrente", "invoices_current_year", unit=CURRENCY_EURO),
         ATSAggregateSensor(coordinator, entry, "invoices_paid", "Totale pagato", "paid_total", unit=CURRENCY_EURO),
         ATSAggregateSensor(coordinator, entry, "next_expiry_amount", "Importo prossima scadenza", "next_expiry_amount", unit=CURRENCY_EURO),
         ATSAggregateSensor(coordinator, entry, "next_expiry_date", "Prossima scadenza fattura", "next_expiry_date", device_class=SensorDeviceClass.DATE),
@@ -61,6 +177,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         ATSAggregateSensor(coordinator, entry, "invoice_details", "Dettagli fatture", "invoice_details"),
         ATSAggregateSensor(coordinator, entry, "last_reading_value", "Ultima lettura contatore", "last_reading_value", unit="m³"),
         ATSAggregateSensor(coordinator, entry, "last_reading_consumption", "Consumo ultima lettura", "last_reading_consumption", unit="m³"),
+        ATSAggregateSensor(coordinator, entry, "annual_consumption_forecast", "Previsione consumo annuo", "annual_consumption_forecast", unit="m³/anno"),
         ATSAggregateSensor(coordinator, entry, "last_reading_date", "Data ultima lettura", "last_reading_date", device_class=SensorDeviceClass.DATE),
         ATSAggregateSensor(coordinator, entry, "reading_details", "Dettagli letture contatore", "reading_details"),
     ])
@@ -77,7 +194,7 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
         self._attr_device_info = _device_info(coordinator, entry.entry_id)
         self._attr_native_unit_of_measurement = unit
         self._attr_device_class = device_class
-        if unit == CURRENCY_EURO or metric in ("active_supplies", "total_supplies", "invoice_count", "unpaid_count"):
+        if unit == CURRENCY_EURO or metric in ("active_supplies", "total_supplies", "invoice_count", "unpaid_count", "annual_consumption_forecast"):
             self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_extra_state_attributes = {}
 
@@ -87,6 +204,19 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
         supplies = data.get("supplies") or []
         invoices = data.get("invoices") or []
         readings = data.get("readings") or []
+        if self._metric == "invoices_current_year":
+            year = dt_util.now().year
+            total, count = _invoice_total_for_year(invoices, year)
+            self._attr_extra_state_attributes = {
+                "anno": year,
+                "numero_fatture": count,
+                "criterio": "data_emissione",
+            }
+            return total
+        if self._metric == "annual_consumption_forecast":
+            forecast, details = _annualized_consumption(supplies, readings)
+            self._attr_extra_state_attributes = details
+            return forecast
         if self._metric in ("last_reading_value", "last_reading_consumption", "last_reading_date", "reading_details"):
             if not readings:
                 if getattr(self.coordinator, "uses_credentials", False):
