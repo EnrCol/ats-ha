@@ -1,11 +1,13 @@
 {
   "domain": "ats",
   "name": "Alto Trevigiano Servizi (ATS)",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "documentation": "https://github.com/Manu-Nat/ats-ha",
   "issue_tracker": "https://github.com/Manu-Nat/ats-ha/issues",
   "requirements": [],
-  "codeowners": ["@Manu-Nat"],
+  "codeowners": [
+    "@Manu-Nat"
+  ],
   "config_flow": true,
   "iot_class": "cloud_polling"
 }
