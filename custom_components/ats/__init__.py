@@ -5,7 +5,7 @@ import logging
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_SCAN_INTERVAL
+from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
@@ -26,6 +26,8 @@ from .coordinator import ATSCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
+
+
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     return True
 
@@ -35,8 +37,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     supply_path = data[CONF_SUPPLY_PATH].strip()
     invoice_path = data[CONF_INVOICE_PATH].strip()
     reading_path = data.get(CONF_READING_PATH, "").strip()
-    cookie = data[CONF_COOKIE].strip()
+    cookie = data.get(CONF_COOKIE, "").strip()
     scan_minutes = int(data.get(ATS_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+
+    # Credentials are stored in this instance's config entry, not in a
+    # global secrets.yaml that would incorrectly be shared across accounts.
+    username = data.get(CONF_USERNAME)
+    password = data.get(CONF_PASSWORD)
+    if not (
+        isinstance(username, str)
+        and username.strip()
+        and isinstance(password, str)
+        and password
+    ):
+        username = password = None
+    else:
+        username = username.strip()
 
     coordinator = ATSCoordinator(
         hass=hass,
@@ -46,11 +62,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         reading_path=reading_path,
         cookie=cookie,
         update_interval=timedelta(minutes=scan_minutes),
+        username=username,
+        password=password,
     )
     try:
         await coordinator.async_config_entry_first_refresh()
-    except Exception as err:
-        raise ConfigEntryNotReady(f"ATS API non raggiungibile o sessione non valida: {err}") from err
+    except Exception:
+        # A first-refresh failure can happen repeatedly after HTTP 401.
+        # Release the ClientSession before Home Assistant retries setup.
+        await coordinator.async_shutdown()
+        raise ConfigEntryNotReady(
+            "ATS: impossibile completare il primo aggiornamento; "
+            "controlla accesso e percorsi API"
+        ) from None
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -63,5 +87,7 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id, None)
+        coordinator = hass.data[DOMAIN].pop(entry.entry_id, None)
+        if coordinator is not None:
+            await coordinator.async_shutdown()
     return unload_ok
