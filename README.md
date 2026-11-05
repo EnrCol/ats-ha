@@ -28,6 +28,7 @@ Tutto viene esposto come sensori sotto un unico dispositivo chiamato **ATS**.
 | `sensor.ats_dettagli_utenze_attive` | Attributi `utenza_1`, `utenza_2`… (stato, servizio, indirizzo, contatore, saldo, consumo annuo stimato) |
 | `sensor.ats_fatture_presenti` / `sensor.ats_fatture_non_pagate` | Numero di fatture e di quelle non pagate |
 | `sensor.ats_totale_fatture` / `sensor.ats_totale_pagato` / `sensor.ats_totale_residuo_da_pagare` | Totali in € |
+| `sensor.ats_totale_fatture_anno_corrente` | Somma delle fatture emesse nell'anno solare corrente (€), con anno e numero fatture negli attributi |
 | `sensor.ats_prossima_scadenza_fattura` / `sensor.ats_importo_prossima_scadenza` | Scadenza e importo residuo della prossima fattura aperta |
 | `sensor.ats_stato_ultima_fattura` | Stato dell'ultima fattura, con numero, periodo, importo e residuo negli attributi |
 | `sensor.ats_consumo_fatturato_totale` | Somma dei consumi presenti sulle fatture |
@@ -35,8 +36,15 @@ Tutto viene esposto come sensori sotto un unico dispositivo chiamato **ATS**.
 | `sensor.ats_ultima_lettura_contatore` | Ultima lettura in m³ |
 | `sensor.ats_consumo_ultima_lettura` / `sensor.ats_data_ultima_lettura` | Consumo e data dell'ultima lettura |
 | `sensor.ats_dettagli_letture_contatore` | Attributi `lettura_1`, `lettura_2`… con lo storico delle letture |
+| `sensor.ats_previsione_consumo_annuo` | Consumo annualizzato in m³/anno dalle ultime due letture effettive validate per contatore attivo, con confronto alla stima ATS negli attributi |
 
 Con login automatico le fatture vengono richieste senza data iniziale fissa e le letture su una finestra mobile di 365 giorni; con cookie manuale il percorso API delle letture è facoltativo.
+
+### Calcoli annuali
+
+- **Totale fatture anno corrente:** usa `EmissionDate` (data di emissione), non la scadenza né il periodo fatturato. Se ci sono fatture ma nessuna nell'anno corrente, il valore è `0 €`. Con elenco fatture vuoto o importo annuale non valido restituisce `unknown`.
+- **Previsione consumo annuo:** per ogni contatore di una fornitura attiva considera le due letture effettive (`Effective=true`) e validate positivamente più recenti, con date distinte. Formula: `(lettura recente - lettura precedente) × 365 / giorni tra le letture`. Se più contatori sono attivi, somma le proiezioni **solo quando tutti dispongono di una coppia valida**. Non include i contatori delle forniture cessate; dati insufficienti o letture decrescenti danno `unknown`.
+- La previsione è una **proiezione storica**, non una lettura in tempo reale: gli attributi riportano le date, il periodo analizzato e la stima annuale `EstimatedAnnualConsumptyion` comunicata da ATS. Se l'ultima lettura è vecchia, la proiezione può non rappresentare il consumo attuale.
 
 ## Installazione
 
@@ -47,6 +55,10 @@ Con login automatico le fatture vengono richieste senza data iniziale fissa e le
 1. In HACS apri il menu ⋮ → **Repository personalizzati**.
 2. Incolla l'URL di questo repository, scegli la categoria **Integrazione** e premi **Aggiungi**.
 3. Cerca **Alto Trevigiano Servizi (ATS)**, scaricala e **riavvia Home Assistant**.
+
+### Beta tramite Marketplace
+
+Se usi il nostro fork `EnrCol/ats-ha`, attiva le **prerelease** per il repository e usa **Installa un'altra versione** per scegliere il tag beta desiderato. Il branch `main` del fork non contiene ancora il nuovo onboarding, quindi **non installare la versione identificata dal vecchio SHA `2fdb8b2`**.
 
 ### Manuale (per provare questo branch)
 
