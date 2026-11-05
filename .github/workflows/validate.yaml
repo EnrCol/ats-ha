@@ -35,6 +35,18 @@ jobs:
           print('Python syntax and ATS UI translations: OK')
           PY
 
+  auth-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Run offline ATS login regression tests
+        run: |
+          python -m pip install --disable-pip-version-check aiohttp
+          python -m unittest discover -s tests -v
+
   hassfest:
     runs-on: ubuntu-latest
     steps:
