@@ -7,11 +7,10 @@
 > Not affiliated with or endorsed by Alto Trevigiano Servizi. It uses the same requests the portal makes in your browser, so it may stop working if the portal changes.
 
 > **Experimental branch `feat/public-ats-onboarding`.** This is not a public release yet.
-> The UI now accepts ATS portal username/password, but **automatic supply discovery
-> is not implemented yet**. Supplies and invoices API paths are still required.
+> Automatic mode uses **only your ATS online portal username and password** and discovers the customer and supplies without manual cookies or API paths.
 > Do not replace a working production installation with this branch.
 >
-> Even with username and password, this beta supports **one ATS config entry per Home Assistant instance** until reliable account discovery has been verified.
+> This beta supports **one ATS config entry per Home Assistant instance**. Multiple supplies belonging to the same customer are aggregated; multiple separate customers under one login are not yet supported.
 
 ## What it does
 
@@ -37,7 +36,7 @@ Everything is exposed as sensors under a single device named **ATS**.
 | `sensor.ats_consumo_ultima_lettura` / `sensor.ats_data_ultima_lettura` | Consumption and date of the latest reading |
 | `sensor.ats_dettagli_letture_contatore` | Attributes `lettura_1`, `lettura_2`… with the readings history |
 
-With automatic login, readings use a rolling 365-day API window. With a manual cookie, the readings path is still required.
+With automatic login, invoices use an open-ended historical start date and readings use a rolling 365-day API window. In manual cookie mode, the readings path is optional.
 
 ## Installation
 
@@ -53,31 +52,32 @@ Copy the `custom_components/ats` folder to `/config/custom_components/ats` and r
 
 ### Adding the integration
 
-**Settings → Devices & services → Add integration → Alto Trevigiano Servizi (ATS)**, then fill in the form using the data from the next section.
+**Settings → Devices & services → Add integration → Alto Trevigiano Servizi (ATS)**. In automatic mode, enter your ATS portal username and password, leave API paths and cookie blank, and submit. SPID/CIE is not supported.
 
-## How to find the configuration values
+## Automatic setup (recommended)
 
-This experimental branch accepts an ATS portal **username and password** and renews the session, or a **manual HTTP cookie** as a fallback. In both cases you still need to obtain supplies and invoices API paths from the portal.
+1. Start the ATS integration setup flow in Home Assistant.
+2. Keep the pre-filled **base URL** (`https://sgc.altotrevigianoservizi.it`).
+3. Enter the **username and password** for the ATS online portal.
+4. Leave **Supplies API path**, **Invoices API path**, **Readings API path**, and **Cookie** empty.
+5. Submit. The integration verifies the login, discovers the session token and customer code from the authenticated page, then loads supplies, invoices and readings.
 
-1. Log in to the ATS customer area in your browser as usual.
-2. Press **F12** (or right-click → **Inspect**) and open the **Network** tab.
-3. Pick the **Fetch/XHR** filter so you only see API calls.
-4. With the tools open, browse the portal sections: **supplies**, **invoices** and **meter readings**. Each one triggers its own request. If the list is empty, reload the page with the Network tab already open.
-5. Click each request and, in the **Headers** tab, look at **Request URL**. You need these three:
+Active and ceased supplies are included; invoices and readings are aggregated for the selected customer. No browser developer tools or copied session cookies are required. A denied session triggers a new login attempt.
 
-   | Request | How to recognise it | Form field |
-   |---|---|---|
-   | Supplies | the URL contains `supply-light` | Supplies API path |
-   | Invoices | the URL contains `invoice` | Invoices API path |
-   | Readings | `…/webapi/api/v1/reading-base/<code>` | Readings API path (optional) |
+## Manual setup (legacy)
 
-6. From the URL copy **only the part starting with `/webapi/`**, query parameters included (for example `/webapi/api/v1/reading-base/<code>`). The base URL `https://sgc.altotrevigianoservizi.it` is already pre-filled.
-7. If using **username/password**, do not copy any cookies. For **manual cookie mode only**, use the request's Cookie header in the corresponding form field. Never share session cookies.
-8. Check that the request is a `GET` returning `200 OK`, and that the **Response** or **Preview** tab shows JSON with your data.
+Use this only for an existing installation or when automatic setup is unsuitable. Without username/password, the legacy mode requires a **manual HTTP cookie** plus **supplies and invoices API paths**; the readings path is optional. A compatibility mode with credentials and manual paths can also renew session tokens.
+
+To find paths:
+
+1. Sign in to ATS in your browser and open **Developer tools → Network → Fetch/XHR**.
+2. Browse **Supplies**, **Invoices**, and, optionally, **Readings**.
+3. Copy only the portion starting with `/webapi/` from the corresponding `supply-light`, `invoice` and `reading-base` URLs. Do not include the domain. URLs may contain session tokens and must be treated as credentials.
+4. For manual cookie mode only, paste the request's `Cookie` header into the integration's cookie field. Expired cookies must be replaced manually.
 
 The update interval is in minutes (5 to 1440, default 60).
 
-> The paths contain codes tied to your account and the cookie works like a password. Never paste them in issues, forums, logs or screenshots. If you need to show something, blur the codes.
+> **Privacy:** passwords, cookies, AT tokens embedded in API URLs, and customer codes are sensitive. Do not publish them in issues, logs or screenshots. Redact them before sharing diagnostics.
 
 ## Session lifetime
 
@@ -89,20 +89,22 @@ If ATS explicitly rejects your stored credentials, Home Assistant starts a **rea
 
 - Use only **ATS online portal credentials**, not SPID/CIE credentials.
 - ATS passwords and manual cookies are stored in Home Assistant's config-entry data; this is not an encrypted password manager. Protect backups and the HA installation.
-- The integration does not write the cookie to the logs.
+- The integration avoids writing passwords, cookies and AT tokens to its log and error messages. The AT token embedded in API URLs is an access credential: do not share complete URLs.
 - The portal returns a `deprecated` header saying requests without an HMAC signature will eventually stop being accepted. This version does **not** implement HMAC.
 
 ## Limitations
 
 - Fields are read from the JSON observed in the portal; the integration does not guess other endpoints and does not download invoice PDFs.
-- A request working in the browser does not by itself guarantee the session can be reused from Home Assistant.
+- Automatic discovery depends on the ATS authenticated page rendering `sol.conf`; portal changes may break it.
+- Only one customer per Home Assistant instance is supported; selecting multiple separate customers under one login is not implemented.
 - Missing values stay `unknown`; they are not replaced with zero.
 - Total billed consumption sums the `Consumption` field of the invoices received: it may span several periods and is not a cumulative meter reading.
 
 ## Troubleshooting
 
-- **Error when adding, or unavailable entities:** check that the paths start with `/`, include their codes and that the cookie is still valid (see *Session lifetime*).
-- **Reading sensors `unknown`:** the readings path is missing; add it from **Configure**.
+- **Automatic setup fails:** check ATS portal credentials and portal availability. A `discovery_failed` message may mean ATS changed its authenticated HTML or session fields.
+- **Manual mode fails:** check the cookie and API paths. Replace an expired cookie.
+- **Reading sensors `unknown`:** there may be no reading in the selected period. Manual mode also requires a configured readings path to fetch them.
 - **Entity IDs are not `sensor.ats_…`:** if you installed an earlier version, already registered IDs keep their old names. From the device page, ⋮ menu, use **Recreate entity IDs**.
 - For logs, enable debug level for `custom_components.ats` and do not share lines containing cookies or codes.
 
