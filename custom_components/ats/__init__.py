@@ -28,9 +28,6 @@ _LOGGER = logging.getLogger(__name__)
 
 
 
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    return True
-
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     data = {**entry.data, **entry.options}
     base_url = data[CONF_BASE_URL].rstrip("/")
