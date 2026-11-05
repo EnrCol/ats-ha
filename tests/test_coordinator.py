@@ -384,6 +384,34 @@ class TestCoordinatorModes(unittest.TestCase):
                              invoice_path="/webapi/api/v1/invoice/{session_uuid}/-1/0/0/")
         self.assertEqual(c.mode, coord.MODE_CREDENTIALS)
 
+    def test_credentials_literal_paths_skip_discovery(self):
+        c = make_coordinator(
+            self.hass,
+            supply_path="/webapi/static/supplies/",
+            invoice_path="/webapi/static/invoices/",
+            reading_path="/webapi/static/readings/",
+        )
+        self.assertEqual(c.mode, coord.MODE_CREDENTIALS)
+        self.assertFalse(c._credentials_paths_need_token())
+
+    def test_credentials_reading_fallback_requires_discovery(self):
+        c = make_coordinator(
+            self.hass,
+            supply_path="/webapi/static/supplies/",
+            invoice_path="/webapi/static/invoices/",
+            reading_path="",
+        )
+        self.assertTrue(c._credentials_paths_need_token())
+
+    def test_credentials_tokenized_path_requires_discovery(self):
+        c = make_coordinator(
+            self.hass,
+            supply_path="/webapi/api/v1/supply-light/{session_uuid}/C123/1/",
+            invoice_path="/webapi/static/invoices/",
+            reading_path="/webapi/static/readings/",
+        )
+        self.assertTrue(c._credentials_paths_need_token())
+
     def test_extract_supply_numbers_dedup_and_skip_bad(self):
         out = coord.extract_supply_numbers(
             [supply("CNT111-1"), supply("CNT111-1"), {"SupplyNo": None},
