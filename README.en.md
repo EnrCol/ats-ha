@@ -40,15 +40,17 @@ With automatic login, invoices use an open-ended historical start date and readi
 
 ## Installation
 
-### With HACS (recommended)
+### With HACS (after publication to `main`)
+
+> **Important:** HACS normally installs the repository's default branch (`main`), which does **not** contain this experimental version yet. Adding this repository to HACS will **not** install `feat/public-ats-onboarding` automatically.
 
 1. In HACS open the ⋮ menu → **Custom repositories**.
 2. Paste this repository's URL, choose the **Integration** category and click **Add**.
 3. Search for **Alto Trevigiano Servizi (ATS)**, download it and **restart Home Assistant**.
 
-### Manual
+### Manual (to test this branch)
 
-Copy the `custom_components/ats` folder to `/config/custom_components/ats` and restart Home Assistant.
+Download the ZIP of [`feat/public-ats-onboarding`](https://github.com/EnrCol/ats-ha/archive/refs/heads/feat/public-ats-onboarding.zip), extract it, and copy `custom_components/ats` into `/config/custom_components/ats`. Restart Home Assistant **only on a test instance**; do not replace a working production setup before real-world validation.
 
 ### Adding the integration
 
