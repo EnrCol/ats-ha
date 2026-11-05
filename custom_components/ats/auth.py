@@ -9,7 +9,11 @@ import aiohttp
 
 
 class ATSLoginError(Exception):
-    """A sanitized error from the ATS login flow."""
+    """A sanitized login or network error (not necessarily invalid credentials)."""
+
+
+class ATSInvalidCredentials(ATSLoginError):
+    """The portal explicitly rejected the supplied username/password."""
 
 
 class _HiddenFormFields(HTMLParser):
@@ -40,7 +44,7 @@ async def async_login(
     The POST deliberately does not follow redirects or log response bodies.
     """
     if not username or not password:
-        raise ATSLoginError("credenziali ATS mancanti")
+        raise ATSInvalidCredentials("credenziali ATS mancanti")
 
     login_page = urljoin(base_url.rstrip("/") + "/", "Login.aspx")
     login_post = urljoin(base_url.rstrip("/") + "/", "login.aspx")
@@ -68,8 +72,12 @@ async def async_login(
             headers={"Origin": base_url.rstrip("/"), "Referer": login_page},
             allow_redirects=False,
         ) as response:
+            if response.status in (200, 401, 403):
+                # The login form was returned again or the credentials were denied.
+                raise ATSInvalidCredentials("credenziali ATS non accettate")
             if response.status not in (302, 303) or ".ASPNETAUTH" not in response.cookies:
-                raise ATSLoginError("accesso ATS rifiutato o procedura cambiata")
+                # Do not assume an unexpected redirect is a password error.
+                raise ATSLoginError("procedura di accesso ATS cambiata")
     except ATSLoginError:
         session.cookie_jar.clear()
         raise
