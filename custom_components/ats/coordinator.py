@@ -65,8 +65,11 @@ def extract_supply_numbers(supplies: list[dict]) -> list[str]:
     numbers: list[str] = []
     for supply in supplies:
         number = supply.get("SupplyNo")
-        if isinstance(number, str) and number.strip() and number not in numbers:
-            numbers.append(number.strip())
+        if not isinstance(number, str):
+            continue
+        number = number.strip()
+        if number and number not in numbers:
+            numbers.append(number)
     return numbers
 
 
