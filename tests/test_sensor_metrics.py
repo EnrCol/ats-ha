@@ -309,6 +309,44 @@ class _Entry:
 
 
 @unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
+class TestLastReadingDateDisplay(unittest.TestCase):
+    def _sensor(self, readings):
+        coordinator = _coord({
+            "supplies": [], "invoices": [], "readings": readings,
+        })
+        return sensor_mod.ATSAggregateSensor(
+            coordinator, _Entry(), "last_reading_date",
+            "Data ultima lettura", "last_reading_date",
+        )
+
+    def test_iso_date_displays_day_first_and_keeps_iso_attribute(self):
+        sensor = self._sensor([
+            reading("METER", "2025-11-06T00:00:00", 340),
+            reading("METER", "2026-05-05T00:00:00", 393),
+        ])
+        self.assertEqual(sensor.native_value, "05-05-2026")
+        self.assertEqual(sensor.extra_state_attributes["data_iso"], "2026-05-05")
+        self.assertIsNone(sensor._attr_device_class)
+        self.assertEqual(sensor._attr_icon, "mdi:calendar")
+
+    def test_day_first_source_uses_same_display_and_iso_date(self):
+        sensor = self._sensor([
+            reading("METER", "06/11/2025", 340),
+            reading("METER", "05/05/2026 08:30:00", 393),
+        ])
+        self.assertEqual(sensor.native_value, "05-05-2026")
+        self.assertEqual(sensor.extra_state_attributes["data_iso"], "2026-05-05")
+
+    def test_missing_and_invalid_readings_remain_unknown(self):
+        missing = self._sensor([])
+        self.assertIsNone(missing.native_value)
+        self.assertIn("nota", missing.extra_state_attributes)
+        invalid = self._sensor([reading("METER", "not-a-date", 393)])
+        self.assertIsNone(invalid.native_value)
+        self.assertIsNone(invalid.extra_state_attributes["data_iso"])
+
+
+@unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class TestDateParsingFallback(unittest.TestCase):
     def test_iso_is_primary(self):
         self.assertEqual(sensor_mod._date("2026-05-05T00:00:00"), datetime(2026, 5, 5))
