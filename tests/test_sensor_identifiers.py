@@ -63,6 +63,10 @@ class TestSensorIdentifiers(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(by_key[key]._attr_native_unit_of_measurement, unit)
             self.assertEqual(by_key[key]._attr_suggested_display_precision, 0)
         self.assertEqual(by_key["active_supply_details"]._attr_name, "Dettagli utenze")
+        reading_date = by_key["last_reading_date"]
+        self.assertIsNone(reading_date._attr_device_class)
+        self.assertEqual(reading_date._attr_icon, "mdi:calendar")
+        self.assertEqual(reading_date._attr_unique_id, f"{entry.entry_id}_last_reading_date")
 
 
 if __name__ == "__main__":
