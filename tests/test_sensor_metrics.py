@@ -294,5 +294,110 @@ class TestAnnualSensorValues(unittest.TestCase):
 
 
 
+def _coord(data):
+    class Coordinator:
+        last_update_success = True
+        def async_add_listener(self, *a, **k):
+            return lambda: None
+    c = Coordinator()
+    c.data = data
+    return c
+
+
+class _Entry:
+    entry_id = "test-ats"
+
+
+@unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
+class TestDateParsingFallback(unittest.TestCase):
+    def test_iso_is_primary(self):
+        self.assertEqual(sensor_mod._date("2026-05-05T00:00:00"), datetime(2026, 5, 5))
+        self.assertEqual(sensor_mod._date("2026-05-07"), datetime(2026, 5, 7))
+
+    def test_day_first_slash_and_dash(self):
+        self.assertEqual(sensor_mod._date("05/05/2026"), datetime(2026, 5, 5))
+        self.assertEqual(sensor_mod._date("05-05-2026"), datetime(2026, 5, 5))
+        # Day-first, not month-first.
+        self.assertEqual(sensor_mod._date("07/08/2026"), datetime(2026, 8, 7))
+        self.assertEqual(sensor_mod._date("07-08-2026"), datetime(2026, 8, 7))
+
+    def test_day_first_with_time(self):
+        self.assertEqual(
+            sensor_mod._date("05/05/2026 08:30:00"), datetime(2026, 5, 5, 8, 30)
+        )
+
+    def test_invalid_and_empty(self):
+        for bad in ("not-a-date", "", None, "99/99/9999"):
+            self.assertIsNone(sensor_mod._date(bad))
+
+    def test_display_and_history_with_day_first_source(self):
+        self.assertEqual(sensor_mod._display_date("05/05/2026"), "05-05-2026")
+        out = sensor_mod._invoice_history([invoice("07/08/2026", 10.0)])
+        self.assertEqual(out["riepilogo_annuale"]["2026"]["numero_fatture"], 1)
+        self.assertEqual(out["storico_fatture"][0]["emissione"], "07-08-2026")
+
+
+@unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
+class TestNextExpiryFutureOnly(unittest.TestCase):
+    def _value(self, metric, invoices, now):
+        sensor = sensor_mod.ATSAggregateSensor(
+            _coord({"invoices": invoices, "supplies": [], "readings": []}),
+            _Entry(), metric, metric, metric,
+        )
+        with patch.object(sensor_mod.dt_util, "now", return_value=now):
+            return sensor.native_value
+
+    def test_picks_earliest_future_not_overdue(self):
+        invoices = [
+            invoice("2026-01-01", 10.0, ExpirationDate="2026-02-01T00:00:00",
+                    RemainingAmount=10.0),  # overdue
+            invoice("2026-06-01", 20.0, ExpirationDate="2026-12-01T00:00:00",
+                    RemainingAmount=20.0),  # future
+            invoice("2026-06-02", 30.0, ExpirationDate="2026-11-20T00:00:00",
+                    RemainingAmount=30.0),  # nearer future
+        ]
+        from datetime import date as _d
+        self.assertEqual(
+            self._value("next_expiry_date", invoices, datetime(2026, 11, 6)),
+            _d(2026, 11, 20),
+        )
+        self.assertEqual(
+            self._value("next_expiry_amount", invoices, datetime(2026, 11, 6)), 30.0
+        )
+
+    def test_all_overdue_returns_none(self):
+        invoices = [invoice("2026-01-01", 10.0, ExpirationDate="2026-02-01T00:00:00")]
+        self.assertIsNone(
+            self._value("next_expiry_date", invoices, datetime(2026, 11, 6))
+        )
+
+    def test_due_today_counts_as_future(self):
+        invoices = [invoice("2026-10-01", 5.0, ExpirationDate="2026-11-06T00:00:00")]
+        from datetime import date as _d
+        self.assertEqual(
+            self._value("next_expiry_date", invoices, datetime(2026, 11, 6)),
+            _d(2026, 11, 6),
+        )
+
+
+@unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
+class TestEmptyVsUnknownCounts(unittest.TestCase):
+    def _nv(self, metric, data):
+        return sensor_mod.ATSAggregateSensor(
+            _coord(data), _Entry(), metric, metric, metric
+        ).native_value
+
+    def test_empty_list_is_zero(self):
+        empty = {"supplies": [], "invoices": [], "readings": []}
+        self.assertEqual(self._nv("total_supplies", empty), 0)
+        self.assertEqual(self._nv("invoice_count", empty), 0)
+        self.assertEqual(self._nv("supply_details", empty), 0)
+        self.assertEqual(self._nv("invoice_details", empty), 0)
+
+    def test_no_data_is_unknown(self):
+        for metric in ("total_supplies", "invoice_count", "supply_details", "invoice_details"):
+            self.assertIsNone(self._nv(metric, None))
+
+
 if __name__ == "__main__":
     unittest.main()

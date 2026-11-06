@@ -30,15 +30,39 @@ def _number(value):
     except (TypeError, ValueError):
         return None
 
+_FALLBACK_DATE_FORMATS = (
+    "%d/%m/%Y %H:%M:%S",
+    "%d-%m-%Y %H:%M:%S",
+    "%d/%m/%Y",
+    "%d-%m-%Y",
+)
+
+
 def _date(value):
+    """Parse an ATS date/datetime.
+
+    ATS currently returns ISO 8601 (e.g. 2026-05-05T00:00:00), which stays the
+    primary format. Day-first GG/MM/AAAA and GG-MM-AAAA are accepted as a
+    preventive fallback so the sensors keep working if ATS ever changes format.
+    ISO is tried first, so an unambiguous YYYY-MM-DD is never misread.
+    """
     if not value:
         return None
     if isinstance(value, datetime):
         return value
-    try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    except (TypeError, ValueError):
+    text = str(value).strip()
+    if not text:
         return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        pass
+    for fmt in _FALLBACK_DATE_FORMATS:
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    return None
 
 def _first(d: dict, *keys):
     for key in keys:
@@ -175,17 +199,17 @@ def _annualized_consumption(
                 "positiva", "positivo", "positive"
             ):
                 continue
-            date = _date(reading.get("Date"))
+            read_date = _date(reading.get("Date"))
             value = _number(reading.get("Value"))
-            if date is None or value is None or not isfinite(value) or value < 0:
+            if read_date is None or value is None or not isfinite(value) or value < 0:
                 continue
-            valid.append((date.date(), value))
+            valid.append((read_date.date(), value))
         valid.sort(reverse=True, key=lambda item: item[0])
         # Duplicate readings from the same date do not form an interval.
         distinct = []
-        for date, value in valid:
-            if not distinct or date != distinct[-1][0]:
-                distinct.append((date, value))
+        for read_date, value in valid:
+            if not distinct or read_date != distinct[-1][0]:
+                distinct.append((read_date, value))
             if len(distinct) == 2:
                 break
         if len(distinct) < 2:
@@ -323,10 +347,12 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
         if self._metric == "active_supplies":
             return sum(1 for s in supplies if s.get("Active") is True or str(s.get("StateDescription", "")).lower() == "attiva")
         if self._metric == "total_supplies":
-            return len(supplies) if supplies else None
+            # 0 when the API replied with an empty list; unknown only when no
+            # data is available yet (failed/first refresh).
+            return len(supplies) if self.coordinator.data is not None else None
         if self._metric == "invoice_count":
             self._attr_extra_state_attributes = _invoice_history(invoices)
-            return len(invoices) if invoices else None
+            return len(invoices) if self.coordinator.data is not None else None
         if self._metric == "unpaid_count":
             # ATS can report ToPay=True even for settled historical invoices.
             # An explicit Payed=True always takes precedence.
@@ -357,13 +383,17 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
             vals = [v for v in vals if v is not None]
             return round(sum(vals), 3) if vals else None
         if self._metric in ("next_expiry_date", "next_expiry_amount"):
+            # The next expiry is the earliest FUTURE due date among unpaid
+            # invoices; already-overdue invoices are not "next".
+            today = dt_util.now().date()
             upcoming = []
             for inv in invoices:
                 if inv.get("Payed") is True or inv.get("ToPay") is False:
                     continue
                 dt = _date(inv.get("ExpirationDate"))
-                if dt:
-                    upcoming.append((dt, _number(_first(inv, "RemainingAmount", "RemainigAmount"))))
+                if dt is None or dt.date() < today:
+                    continue
+                upcoming.append((dt, _number(_first(inv, "RemainingAmount", "RemainigAmount"))))
             if not upcoming:
                 return None
             dt, amount = sorted(upcoming, key=lambda x: x[0])[0]
@@ -398,7 +428,7 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
                     "consumo_annuo_stimato": s.get("EstimatedAnnualConsumptyion"),
                 } for idx, s in enumerate(supplies)
             }
-            return len(supplies) if supplies else None
+            return len(supplies) if self.coordinator.data is not None else None
         if self._metric == "invoice_details":
             self._attr_extra_state_attributes = {
                 f"fattura_{idx+1}": {
@@ -419,5 +449,5 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
                     "pdf_disponibile": i.get("PdfExist"),
                 } for idx, i in enumerate(invoices)
             }
-            return len(invoices) if invoices else None
+            return len(invoices) if self.coordinator.data is not None else None
         return None
