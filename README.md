@@ -34,13 +34,13 @@ Tutto viene esposto come sensori sotto un unico dispositivo chiamato **ATS**.
 | `sensor.ats_consumo_fatturato_totale` | Somma dei consumi presenti sulle fatture, con unità **m³** (non equivale alla lettura cumulativa) |
 | `sensor.ats_dettagli_fatture` | Attributi `fattura_1`, `fattura_2`… con i campi originali ISO e nuove date `emissione_formattata` / `scadenza_formattata` in formato `GG-MM-AAAA` |
 | `sensor.ats_ultima_lettura_contatore` | Ultima lettura in m³ |
-| `sensor.ats_consumo_ultima_lettura` / `sensor.ats_data_ultima_lettura` | Consumo e data dell'ultima lettura |
+| `sensor.ats_consumo_ultima_lettura` / `sensor.ats_data_ultima_lettura` | Consumo e data dell'ultima lettura; lo stato della data è `GG-MM-AAAA`, l'attributo `data_iso` conserva `AAAA-MM-GG` |
 | `sensor.ats_dettagli_letture_contatore` | Attributi `lettura_1`, `lettura_2`… con lo storico delle letture |
 | `sensor.ats_previsione_consumo_annuo` | Consumo annualizzato in m³/anno dalle ultime due letture effettive validate per contatore attivo, con confronto alla stima ATS negli attributi |
 
 Con login automatico le fatture vengono richieste senza data iniziale fissa e le letture su una finestra mobile di 365 giorni; con cookie manuale il percorso API delle letture è facoltativo.
 
-I sensori in m³ e m³/anno **suggeriscono la visualizzazione senza decimali**, senza arrotondare i valori effettivamente forniti a Home Assistant. Gli utenti possono cambiare la precisione dalle impostazioni dell'entità. Il sensore `Data ultima lettura` mantiene una vera data ISO per la compatibilità con Home Assistant; le dashboard possono mostrarla come `GG-MM-AAAA`.
+I sensori in m³ e m³/anno **suggeriscono la visualizzazione senza decimali**, senza arrotondare i valori effettivamente forniti a Home Assistant. Gli utenti possono cambiare la precisione dalle impostazioni dell'entità. Il sensore `Data ultima lettura` è testuale: mostra `GG-MM-AAAA` e conserva l'originale `AAAA-MM-GG` nell'attributo `data_iso`. Non ha più `device_class: date`, quindi chi usa questo sensore per calcoli o template deve leggere `data_iso`. Per l'aggiornamento del template della dashboard Energia, consulta [la migrazione beta.5](docs/dashboard-energia-ats-beta5.md).
 
 ### Storico economico e calcoli annuali
 
