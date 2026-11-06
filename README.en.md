@@ -34,13 +34,13 @@ Everything is exposed as sensors under a single device named **ATS**.
 | `sensor.ats_consumo_fatturato_totale` | Sum of consumption values on invoices, with **m³** unit (not a cumulative meter reading) |
 | `sensor.ats_dettagli_fatture` | Existing `fattura_1`, `fattura_2`… ISO-date attributes retained; new `emissione_formattata` / `scadenza_formattata` dates use `DD-MM-YYYY` |
 | `sensor.ats_ultima_lettura_contatore` | Latest reading in m³ |
-| `sensor.ats_consumo_ultima_lettura` / `sensor.ats_data_ultima_lettura` | Consumption and date of the latest reading |
+| `sensor.ats_consumo_ultima_lettura` / `sensor.ats_data_ultima_lettura` | Latest reading consumption and date; the date state is `DD-MM-YYYY`, and the `data_iso` attribute preserves `YYYY-MM-DD` |
 | `sensor.ats_dettagli_letture_contatore` | Attributes `lettura_1`, `lettura_2`… with the readings history |
 | `sensor.ats_previsione_consumo_annuo` | Annualized consumption in m³/year from the latest two valid effective readings per active meter; ATS's own estimate is available in attributes |
 
 With automatic login, invoices use an open-ended historical start date and readings use a rolling 365-day API window. In manual cookie mode, the readings path is optional.
 
-Sensors measuring m³ or m³/year **suggest zero display decimals** without rounding their underlying values. Users can override display precision in Home Assistant entity settings. The `Data ultima lettura` sensor keeps an ISO date as required for Home Assistant date entities; dashboards can format it as `DD-MM-YYYY`.
+Sensors measuring m³ or m³/year **suggest zero display decimals** without rounding their underlying values. Users can override display precision in Home Assistant entity settings. The `Data ultima lettura` sensor is now text-based: its state is `DD-MM-YYYY`, while `data_iso` preserves the machine-readable `YYYY-MM-DD`. It no longer exposes `device_class: date`; consumers requiring a native date should read the `data_iso` attribute. The [beta.5 Energia dashboard migration](docs/dashboard-energia-ats-beta5.md) documents the necessary template change.
 
 ### Financial history and annual calculations
 
