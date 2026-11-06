@@ -263,7 +263,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         ATSAggregateSensor(coordinator, entry, "last_reading_value", "Ultima lettura contatore", "last_reading_value", unit="m³"),
         ATSAggregateSensor(coordinator, entry, "last_reading_consumption", "Consumo ultima lettura", "last_reading_consumption", unit="m³"),
         ATSAggregateSensor(coordinator, entry, "annual_consumption_forecast", "Previsione consumo annuo", "annual_consumption_forecast", unit="m³/anno"),
-        ATSAggregateSensor(coordinator, entry, "last_reading_date", "Data ultima lettura", "last_reading_date", device_class=SensorDeviceClass.DATE),
+        ATSAggregateSensor(coordinator, entry, "last_reading_date", "Data ultima lettura", "last_reading_date"),
         ATSAggregateSensor(coordinator, entry, "reading_details", "Dettagli letture contatore", "reading_details"),
     ])
 
@@ -282,6 +282,9 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
         if unit in ("m³", "m³/anno"):
             self._attr_suggested_display_precision = 0
         self._attr_device_class = device_class
+        if metric == "last_reading_date":
+            # Text state GG-MM-AAAA; machine-readable ISO remains in data_iso.
+            self._attr_icon = "mdi:calendar"
         if unit == CURRENCY_EURO or metric in ("active_supplies", "total_supplies", "invoice_count", "unpaid_count", "annual_consumption_forecast"):
             self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_extra_state_attributes = {}
@@ -334,7 +337,11 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
                 self._attr_extra_state_attributes = {"data": latest.get("Date"), "tipo": latest.get("Type"), "lettura_effettiva": latest.get("Effective"), "validazione": latest.get("ValidationResult"), "fatturata": latest.get("Invoiced")}
                 return _number(latest.get("Consumption"))
             if self._metric == "last_reading_date":
-                return (_date(latest.get("Date")).date() if _date(latest.get("Date")) else None)
+                parsed = _date(latest.get("Date"))
+                self._attr_extra_state_attributes = {
+                    "data_iso": parsed.date().isoformat() if parsed is not None else None,
+                }
+                return parsed.strftime("%d-%m-%Y") if parsed is not None else None
             self._attr_extra_state_attributes = {
                 f"lettura_{idx+1}": {
                     "data": item.get("Date"), "valore": item.get("Value"), "tipo": item.get("Type"),
