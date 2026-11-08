@@ -38,6 +38,8 @@ from .invoice_download import (
 
 _LOGGER = logging.getLogger(__name__)
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 
 class ATSInvoicePDFView(HomeAssistantView):
     """Serve only locally archived ATS invoices to authenticated HA users."""

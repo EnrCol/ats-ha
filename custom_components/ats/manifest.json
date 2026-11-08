@@ -12,6 +12,7 @@
   "requirements": [],
   "version": "0.4.0b6",
   "dependencies": [
-    "frontend"
+    "frontend",
+    "http"
   ]
 }
