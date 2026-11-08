@@ -111,7 +111,7 @@ async def test_clean_install_registers_lovelace_resource():
 
     collection.async_create_item.assert_awaited_once_with({
         "res_type": "module",
-        "url": "/ats_static/invoice-history-card.js?v=0.4.0b7",
+        "url": "/ats_static/invoice-history-card.js?v=0.4.0b8",
     })
     assert not fallback
     assert len(paths) == 1
@@ -132,7 +132,7 @@ async def test_lovelace_resource_idempotent():
     collection.async_get_info = AsyncMock(return_value={"resources": 1})
     collection.async_items.return_value = [{
         "id": "same", "type": "module",
-        "url": "/ats_static/invoice-history-card.js?v=0.4.0b7",
+        "url": "/ats_static/invoice-history-card.js?v=0.4.0b8",
     }]
     collection.async_create_item = AsyncMock()
     hass = SimpleNamespace(
@@ -140,6 +140,39 @@ async def test_lovelace_resource_idempotent():
     )
     assert await ats.async_setup(hass, {})
     collection.async_create_item.assert_not_awaited()
+    collection.async_update_item.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_lovelace_resource_updated_on_version_upgrade():
+    from unittest.mock import AsyncMock, create_autospec
+
+    class HTTP:
+        async def async_register_static_paths(self, paths):
+            pass
+        def register_view(self, view):
+            pass
+
+    collection = create_autospec(ats.ResourceStorageCollection, instance=True)
+    collection.async_get_info = AsyncMock(return_value={"resources": 1})
+    collection.async_items.return_value = [{
+        "id": "existing-resource",
+        "type": "module",
+        "url": "/ats_static/invoice-history-card.js?v=0.4.0b7",
+    }]
+    collection.async_create_item = AsyncMock()
+    collection.async_update_item = AsyncMock()
+    hass = SimpleNamespace(
+        http=HTTP(), data={ats.LOVELACE_DATA: SimpleNamespace(resources=collection)}
+    )
+    assert await ats.async_setup(hass, {})
+    collection.async_create_item.assert_not_awaited()
+    collection.async_update_item.assert_awaited_once_with(
+        "existing-resource", {
+            "res_type": "module",
+            "url": "/ats_static/invoice-history-card.js?v=0.4.0b8",
+        }
+    )
 
 
 @pytest.mark.asyncio
@@ -159,4 +192,4 @@ async def test_yaml_lovelace_fallback_registers_frontend_module():
         assert await ats.async_setup(hass, {})
     finally:
         ats.add_extra_js_url = original
-    assert urls == ["/ats_static/invoice-history-card.js?v=0.4.0b7"]
+    assert urls == ["/ats_static/invoice-history-card.js?v=0.4.0b8"]

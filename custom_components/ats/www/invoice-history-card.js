@@ -1,20 +1,61 @@
 class ATSInvoiceHistoryCard extends HTMLElement {
   setConfig(config) {
-    if (!config.entity || typeof config.entity !== "string") {
-      throw new Error("ATS: indicare l'entità dello storico fatture");
+    // Optional explicit override for users with multiple ATS installations.
+    if (config.entity !== undefined &&
+        (typeof config.entity !== "string" || !config.entity.trim())) {
+      throw new Error("ATS: entity deve essere un entity_id valido");
     }
     this._config = config;
     if (!this.shadowRoot) this.attachShadow({ mode: "open" });
   }
 
+  _resolveInvoiceEntity(hass) {
+    if (this._config.entity) {
+      return { id: this._config.entity, reason: null };
+    }
+    const states = Object.entries(hass.states || {});
+    const hasInvoiceHistory = ([entityId, state]) =>
+      entityId.startsWith("sensor.") &&
+      Array.isArray(state?.attributes?.storico_fatture) &&
+      state?.attributes?.riepilogo_annuale !== undefined;
+    const matches = states.filter(([id, state]) =>
+      state?.attributes?.ats_metric === "invoice_count" &&
+      hasInvoiceHistory([id, state])
+    );
+    if (matches.length === 1) {
+      return { id: matches[0][0], reason: null };
+    }
+    if (matches.length > 1) {
+      return { id: null, reason: "ambiguous" };
+    }
+    // Backward compatibility with previously installed ATS sensors that
+    // predate the stable ats_metric attribute.
+    const legacy = states.filter(hasInvoiceHistory);
+    if (legacy.length === 1) {
+      return { id: legacy[0][0], reason: null };
+    }
+    return { id: null, reason: legacy.length ? "ambiguous" : "missing" };
+  }
+
   set hass(hass) {
     this._hass = hass;
-    const state = hass.states[this._config.entity];
-    const attrs = state && state.attributes ? state.attributes : {};
-    const signature = JSON.stringify([attrs.riepilogo_annuale, attrs.storico_fatture]);
+    if (!this._config) return;
+    const resolved = this._resolveInvoiceEntity(hass);
+    const state = resolved.id ? hass.states[resolved.id] : null;
+    const attrs = state?.attributes || {};
+    const signature = JSON.stringify([
+      resolved.id, resolved.reason, attrs.riepilogo_annuale, attrs.storico_fatture
+    ]);
     if (signature === this._lastSignature) return;
     this._lastSignature = signature;
     this._render(attrs);
+    if (!state && this._message) {
+      this._message.textContent = resolved.reason === "ambiguous"
+        ? "Sono presenti più storici ATS. Specifica entity: nella card."
+        : this._config.entity
+          ? "Sensore fatture ATS non trovato: " + this._config.entity
+          : "In attesa dello storico ATS: configura l'integrazione e aggiorna la pagina.";
+    }
   }
 
   _e(tag, cls, value) {

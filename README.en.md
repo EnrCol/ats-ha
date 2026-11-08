@@ -6,7 +6,7 @@
 
 > Not affiliated with or endorsed by Alto Trevigiano Servizi. It uses the same requests the portal makes in your browser, so it may stop working if the portal changes.
 
-> **Beta.7 candidate in the `EnrCol/ats-ha` fork.** Check that the prerelease has actually been published before upgrading production.
+> **Beta.8 candidate in the `EnrCol/ats-ha` fork.** Check that the prerelease has actually been published before upgrading production.
 > Automatic mode uses **only your ATS online portal username and password** and discovers the customer and supplies without manual cookies or API paths.
 > Do not replace a working production installation with this branch.
 >
@@ -21,6 +21,8 @@
 Everything is exposed as sensors under a single device named **ATS**.
 
 ### Sensors
+
+The `entity_id` values in this table are **examples**, not guaranteed IDs: Home Assistant may add area/device prefixes or retain user-defined names. Every ATS sensor exposes a stable `ats_metric` attribute; the example dashboards discover the right entity dynamically.
 
 | Entity | Content |
 |---|---|
@@ -123,14 +125,14 @@ If ATS explicitly rejects your stored credentials, Home Assistant starts a **rea
 - **Automatic setup fails:** check ATS portal credentials and portal availability. A `discovery_failed` message may mean ATS changed its authenticated HTML or session fields.
 - **Manual mode fails:** check the cookie and API paths. Replace an expired cookie.
 - **Reading sensors `unknown`:** there may be no reading in the selected period. Manual mode also requires a configured readings path to fetch them.
-- **Entity IDs are not `sensor.ats_…`:** if you installed an earlier version, already registered IDs keep their old names. From the device page, ⋮ menu, use **Recreate entity IDs**.
+- **Entity IDs differ from `sensor.ats_…`:** this is normal when HA prefixes area/device names. Existing IDs remain untouched; **you do not need to rename entities** to use the beta.8 example dashboard. For your own automations use the ID actually assigned by HA.
 - For logs, enable debug level for `custom_components.ats` and do not share lines containing cookies or codes.
 
 ## Reporting issues
 
 Open a GitHub issue with your Home Assistant version, the integration version and the log error, **without** cookies or account codes.
 
-## Beta.7 — complete installation with PDF viewer and example card
+## Beta.8 — complete installation with PDF viewer and example card
 
 This beta includes automatic ATS login, sensors, yearly invoice history, the
 `da_pagare` payment flag fix, `ats.download_invoices`, private invoice PDFs under
@@ -138,7 +140,7 @@ This beta includes automatic ATS login, sensors, yearly invoice history, the
 Home Assistant**, including the Android Companion App.
 
 1. In Home Assistant **Marketplace**, add **`EnrCol/ats-ha`** as a custom
-   *Integration* repository and install prerelease **`v0.4.0-beta.7`** when
+   *Integration* repository and install prerelease **`v0.4.0-beta.8`** when
    published. Alternatively copy the entire **`custom_components/ats/`**
    directory (including its **`www/`** directory) into Home Assistant and
    restart Core.
@@ -169,9 +171,13 @@ the file has already been downloaded locally. See the
 verification. No personal invoice or credentials are distributed.
 
 
-### Beta.7 — simplified first-run and native Lovelace registration
+### Beta.8 — simplified first-run and native Lovelace registration
 
 - **New setup:** only ATS portal **username**, **password**, and **polling interval** (60 minutes by default) are shown. HTTPS origin, invoice/supply paths and cookies are discovered and stored automatically. Already-configured legacy entries retain advanced options.
-- **Lovelace card:** in storage resource mode ATS automatically registers `/ats_static/invoice-history-card.js?v=0.4.0b7` as a **module** resource, without duplicates on restart. Hard-refresh the frontend or reopen the Companion App after installation; in YAML resource mode the frontend module fallback is used and manual YAML registration may be needed.
-- **Stable suggested IDs:** new installations use e.g. `sensor.ats_fatture_presenti` and `sensor.ats_utenze_attive`, regardless of device/area prefixes. Existing **unique IDs and registered entity IDs remain unchanged**; examples may need adjustment for collisions or renamed entities.
+- **Lovelace card:** in storage resource mode ATS automatically registers `/ats_static/invoice-history-card.js?v=0.4.0b8` as a **module** resource, without duplicates on restart. Hard-refresh the frontend or reopen the Companion App after installation; in YAML resource mode the frontend module fallback is used and manual YAML registration may be needed.
+- **Portable discovery:** all ATS sensors expose a stable `ats_metric` attribute. Example YAML finds the correct entities using `integration_entities('ats')` plus `ats_metric`, and the invoice card automatically discovers its sensor without requiring `entity:`. An optional explicit `entity:` override remains available. **No registered entity ID or unique ID is changed.**
 - **Security:** invoices remain private under `/media/ats/fatture/` and are fetched using `fetchWithAuth()`; no public `/local` links.
+
+### Beta.8 card — requirements and behavior
+
+**Browser Mod is not required.** The card uses an HTML-native `dialog` with PDF.js loaded on first use. Once ATS is installed and configured, paste `examples/ats-card.yaml`; no entity renaming or manual resource installation is needed. The Lovelace module resource is also updated automatically on upgrades. If ATS is not yet available a message is displayed; if several candidate invoice sensors exist, set the optional `entity: sensor.actual_entity_id` override.

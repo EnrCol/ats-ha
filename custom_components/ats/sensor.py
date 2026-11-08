@@ -301,6 +301,14 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
         return f"ats_{slugify(self._attr_name)}"
 
     @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose a stable metric identifier independent of entity_id."""
+        return {
+            **(self._attr_extra_state_attributes or {}),
+            "ats_metric": self._metric,
+        }
+
+    @property
     def native_value(self):
         data = self.coordinator.data or {}
         supplies = data.get("supplies") or []

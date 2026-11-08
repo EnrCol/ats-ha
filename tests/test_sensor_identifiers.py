@@ -50,6 +50,7 @@ class TestSensorIdentifiers(unittest.IsolatedAsyncioTestCase):
             # unique_id must stay entry_id-scoped (entity registry persistence)
             self.assertEqual(e._attr_unique_id, f"{entry.entry_id}_{e._key}")
             self.assertTrue(e.suggested_object_id.startswith("ats_"))
+            self.assertEqual(e.extra_state_attributes["ats_metric"], e._metric)
             # device identifier must stay entry_id-scoped (device registry)
             ids = e._attr_device_info["identifiers"]
             self.assertIn((DOMAIN, entry.entry_id), ids)

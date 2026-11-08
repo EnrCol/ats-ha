@@ -117,7 +117,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             )
         ]
     )
-    card_url = "/ats_static/invoice-history-card.js?v=0.4.0b7"
+    card_url = "/ats_static/invoice-history-card.js?v=0.4.0b8"
     lovelace_data = hass.data.get(LOVELACE_DATA)
     resources = lovelace_data.resources if lovelace_data else None
     if isinstance(resources, ResourceStorageCollection):
@@ -125,11 +125,22 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         # A plain add_extra_js_url is not consistently loaded by dashboards.
         await resources.async_get_info()
         entries = resources.async_items()
-        if not any(
-            (item.get("url") or "").split("?")[0] == "/ats_static/invoice-history-card.js"
-            for item in entries
-        ):
+        existing = next(
+            (
+                item
+                for item in entries
+                if (item.get("url") or "").split("?")[0]
+                == "/ats_static/invoice-history-card.js"
+            ),
+            None,
+        )
+        if existing is None:
             await resources.async_create_item({"res_type": "module", "url": card_url})
+        elif existing.get("url") != card_url or existing.get("type") != "module":
+            # Update on upgrades so browsers see the new cache-busting version.
+            await resources.async_update_item(
+                existing["id"], {"res_type": "module", "url": card_url}
+            )
     else:
         # YAML resource mode cannot be written through the storage collection.
         add_extra_js_url(hass, card_url)

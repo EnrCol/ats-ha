@@ -20,6 +20,7 @@ jobs:
         run: |
           python -m compileall -q custom_components/ats
           node --check custom_components/ats/www/invoice-history-card.js
+          node --test tests/test_card_portability.cjs
           python - <<'PY'
           import json
           from pathlib import Path
@@ -77,25 +78,25 @@ jobs:
         with:
           category: integration
 
-  publish-beta7:
+  publish-beta8:
     # Never publish from PRs, other branches, or before all checks are green.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/ats-beta7-clean-install-20261108'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/ats-beta8-portable-card-20261108'
     needs: [syntax, offline-tests, ha-tests, hassfest, hacs]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Publish GitHub prerelease v0.4.0-beta.7
+      - name: Publish GitHub prerelease v0.4.0-beta.8
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          TAG=v0.4.0-beta.7
+          TAG=v0.4.0-beta.8
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "::error::Prerelease already exists; refusing to overwrite it."
             exit 1
           fi
           gh release create "$TAG" --target "$GITHUB_SHA" --prerelease \
-            --title "ATS v0.4.0-beta.7" \
-            --notes "Beta.7: live-parity ATS sensors, corrected payments and SupplyNo, authenticated on-demand PDF archive, bundled PDF.js Lovelace card, example dashboards, Italian/English docs and clean-instance tests. No user credentials or invoices are bundled. This is a pre-release from EnrCol/ats-ha, not an upstream release."
+            --title "ATS v0.4.0-beta.8" \
+            --notes "Beta.8: live-parity ATS sensors, corrected payments and SupplyNo, authenticated on-demand PDF archive, bundled PDF.js Lovelace card, example dashboards, Italian/English docs and clean-instance tests. No user credentials or invoices are bundled. This is a pre-release from EnrCol/ats-ha, not an upstream release."

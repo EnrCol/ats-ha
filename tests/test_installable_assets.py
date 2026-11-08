@@ -12,7 +12,7 @@ INTEGRATION = ROOT / "custom_components" / "ats"
 
 def test_manifest_and_frontend_asset_in_installed_integration():
     manifest = json.loads((INTEGRATION / "manifest.json").read_text())
-    assert manifest["version"] == "0.4.0b7"
+    assert manifest["version"] == "0.4.0b8"
     assert {"frontend", "http", "lovelace"} <= set(manifest["dependencies"])
 
     card = (INTEGRATION / "www" / "invoice-history-card.js").read_text()
@@ -29,9 +29,13 @@ def test_example_cards_are_valid_yaml_and_reference_existing_entities():
     assert card["type"] == "vertical-stack"
     assert any(
         c.get("type") == "custom:ats-invoice-history-card"
-        and c.get("entity") == "sensor.ats_fatture_presenti"
+        and "entity" not in c  # Autodetection: no fixed entity ID
         for c in card["cards"]
     )
+    summary = next(c for c in card["cards"] if c.get("type") == "markdown")["content"]
+    assert "integration_entities('ats')" in summary
+    assert "ats_metric" in summary
+    assert "states('sensor.ats_" not in summary
     assert any(
         c.get("tap_action", {}).get("perform_action") == "ats.download_invoices"
         for c in card["cards"]

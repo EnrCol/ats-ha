@@ -6,7 +6,7 @@ Integrazione **non ufficiale** per Home Assistant che legge dall'area utente di 
 
 > Non è affiliata né approvata da Alto Trevigiano Servizi. Usa le stesse richieste che il portale esegue nel tuo browser, quindi può smettere di funzionare se il portale cambia.
 
-> **Beta.7 in preparazione sul fork `EnrCol/ats-ha`.** Verifica la release effettivamente disponibile prima di aggiornare un'installazione di produzione.
+> **Beta.8 in preparazione sul fork `EnrCol/ats-ha`.** Verifica la release effettivamente disponibile prima di aggiornare un'installazione di produzione.
 > La modalità automatica usa **solo username e password dello Sportello Online ATS**: identifica il cliente e le forniture senza chiedere cookie o percorsi API.
 > Non sostituire una installazione live funzionante con questo ramo.
 >
@@ -21,6 +21,8 @@ Integrazione **non ufficiale** per Home Assistant che legge dall'area utente di 
 Tutto viene esposto come sensori sotto un unico dispositivo chiamato **ATS**.
 
 ### Sensori
+
+Gli `entity_id` indicati nella tabella sono **esempi**, non nomi garantiti: Home Assistant può aggiungere prefissi di area/dispositivo o conservarne di personalizzati. Ogni sensore ATS espone l'attributo stabile `ats_metric`, utilizzato dagli esempi YAML per individuarlo senza conoscere l'ID.
 
 | Entità | Contenuto |
 |---|---|
@@ -123,14 +125,14 @@ Se ATS rifiuta esplicitamente username o password, Home Assistant avvia la proce
 - **Errore nella configurazione automatica:** verifica le credenziali dello Sportello Online ATS e la disponibilità del portale. Se compare `discovery_failed`, ATS potrebbe aver modificato l'HTML o i dati della sessione.
 - **Modalità manuale:** controlla cookie e percorsi API; se la sessione scade, aggiorna il cookie.
 - **Sensori delle letture `unknown`:** controlla la risposta API; con cookie manuale configura anche il percorso delle letture.
-- **Gli ID non sono `sensor.ats_…`:** se avevi installato una versione precedente, gli ID già registrati restano quelli vecchi. Dalla pagina del dispositivo, menu ⋮, usa **Ricrea ID entità**.
+- **ID diversi da `sensor.ats_…`:** è normale che Home Assistant aggiunga prefissi di area/dispositivo. Gli ID esistenti sono preservati; **non occorre rinominarli** per utilizzare la card o gli esempi della beta.8. Per un'automazione personale utilizza l'ID effettivamente assegnato alla tua entità.
 - Per i log, attiva il livello debug per `custom_components.ats` e non condividere righe che contengono cookie o codici.
 
 ## Segnalare problemi
 
 Apri una issue su GitHub descrivendo versione di Home Assistant, versione dell'integrazione e l'errore del log, **senza** cookie né codici dell'account.
 
-## Beta.7 — installazione completa con PDF e card
+## Beta.8 — installazione completa con PDF e card
 
 Questa versione include **autenticazione automatica ATS**, sensori, storico fatture,
 correzione del flag `da_pagare`, azione `ats.download_invoices`, archivio PDF
@@ -141,7 +143,7 @@ Android, dopo il caricamento della risorsa).
 ### Installazione pulita
 
 1. In **Marketplace** aggiungi il repository personalizzato **`EnrCol/ats-ha`**
-   come *Integrazione* e installa la prerelease **`v0.4.0-beta.7`** quando
+   come *Integrazione* e installa la prerelease **`v0.4.0-beta.8`** quando
    disponibile. In alternativa copia la cartella **`custom_components/ats/`**
    dal pacchetto pubblicato in `/config/custom_components/ats/` mantenendo
    anche la sottocartella **`www/`**, quindi riavvia Home Assistant.
@@ -181,9 +183,13 @@ mancanti deve essere eseguito prima della prima apertura. Nessuna fattura
 o credenziale di esempio è inclusa nel repository.
 
 
-### Beta.7 — primo avvio semplificato e risorse Lovelace
+### Beta.8 — primo avvio semplificato e risorse Lovelace
 
 - **Nuova configurazione:** richiede solo *username ATS*, *password ATS* e *intervallo di aggiornamento* (default 60 minuti). Nessun URL, percorso API o cookie da digitare. Gli utenti con configurazioni legacy già registrate mantengono le impostazioni manuali tramite *Configura*.
-- **Card:** con Lovelace in modalità storage l'integrazione registra il modulo `/ats_static/invoice-history-card.js?v=0.4.0b7` direttamente tra le **Risorse della dashboard**, senza interventi dell'utente e senza duplicarlo nei riavvii. Dopo il primo riavvio aggiorna completamente il browser, oppure chiudi e riapri la Companion App. Con Lovelace in modalità YAML è disponibile il caricamento frontend di fallback; se non viene caricato, aggiungi il modulo alle risorse YAML.
-- **Identificativi consigliati:** le installazioni nuove ricevono ID prevedibili, per esempio `sensor.ats_fatture_presenti` e `sensor.ats_utenze_attive`, indipendenti dal nome area/dispositivo. I **unique_id** e gli ID già registrati **non cambiano**. In presenza di collisioni o personalizzazioni, adattare la dashboard di esempio.
+- **Card:** con Lovelace in modalità storage l'integrazione registra il modulo `/ats_static/invoice-history-card.js?v=0.4.0b8` direttamente tra le **Risorse della dashboard**, senza interventi dell'utente e senza duplicarlo nei riavvii. Dopo il primo riavvio aggiorna completamente il browser, oppure chiudi e riapri la Companion App. Con Lovelace in modalità YAML è disponibile il caricamento frontend di fallback; se non viene caricato, aggiungi il modulo alle risorse YAML.
+- **Identificazione portabile:** l'attributo `ats_metric` identifica in modo stabile ogni sensore, indipendentemente dall'`entity_id`. Il riepilogo degli esempi YAML usa `integration_entities('ats')` e `ats_metric`; la card individua automaticamente lo storico fatture e non richiede più `entity:`. È comunque possibile indicare `entity:` quando serva una scelta esplicita. Nessun `unique_id` o ID registrato viene modificato.
 - **Sicurezza:** i documenti restano in `/media/ats/fatture/`, il viewer usa `fetchWithAuth()` e PDF.js, senza rendere le bollette pubbliche in `/local`.
+
+### Card beta.8 — requisiti e comportamento
+
+La card dello storico ATS **non richiede Browser Mod** e utilizza una finestra HTML nativa (`dialog`) con PDF.js caricato da CDN alla prima apertura. È sufficiente copiare `examples/ats-card.yaml` dopo aver installato e configurato l'integrazione; non occorre conoscere o rinominare gli `entity_id`. La risorsa Lovelace viene registrata e aggiornata automaticamente durante gli upgrade. Se il sensore non è ancora disponibile compare un messaggio; se ne esistono più di uno con lo stesso ruolo, specificare esplicitamente `entity: sensor.nome_effettivo` nella card.

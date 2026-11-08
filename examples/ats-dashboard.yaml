@@ -9,14 +9,22 @@ views:
         cards:
           - type: markdown
             content: |
+              {% set ats = namespace(ids={}) %}
+              {% for eid in integration_entities('ats') %}
+                {% set metric = state_attr(eid, 'ats_metric') %}
+                {% if metric is string %}
+                  {% set ats.ids = dict(ats.ids, **{metric: eid}) %}
+                {% endif %}
+              {% endfor %}
               ## Acqua · ATS
-              **Utenze attive:** {{ states('sensor.ats_utenze_attive') }}
-              **Fatture disponibili:** {{ states('sensor.ats_fatture_presenti') }}
-              **Fatture da pagare:** {{ states('sensor.ats_fatture_non_pagate') }}
-              {% set residuo = states('sensor.ats_totale_residuo_da_pagare') %}
+              **Utenze attive:** {{ states(ats.ids.get('active_supplies', 'sensor.ats_missing')) }}
+              **Fatture disponibili:** {{ states(ats.ids.get('invoice_count', 'sensor.ats_missing')) }}
+              **Fatture da pagare:** {{ states(ats.ids.get('unpaid_count', 'sensor.ats_missing')) }}
+              {% set residuo = states(ats.ids.get('remaining_total', 'sensor.ats_missing')) %}
               **Residuo:** {{ ('%.2f €' | format(residuo | float)) if is_number(residuo) else 'Non disponibile' }}
-              {% set previsione = states('sensor.ats_previsione_consumo_annuo') %}
-              {% set stima = state_attr('sensor.ats_previsione_consumo_annuo', 'stima_ats_m3_anno') %}
+              {% set forecast_id = ats.ids.get('annual_consumption_forecast', '') %}
+              {% set previsione = states(forecast_id) if forecast_id else 'unknown' %}
+              {% set stima = state_attr(forecast_id, 'stima_ats_m3_anno') if forecast_id else none %}
               {% if is_number(previsione) %}
               **Consumo annuo da letture:** {{ previsione | float | round(0) }} m³/anno
               {% elif is_number(stima) %}
@@ -24,7 +32,7 @@ views:
               {% else %}
               **Consumo annuo:** Non disponibile
               {% endif %}
-              **Ultima lettura:** {{ states('sensor.ats_data_ultima_lettura') }}
+              **Ultima lettura:** {{ states(ats.ids.get('last_reading_date', 'sensor.ats_missing')) }}
           - type: button
             name: Scarica fatture ATS mancanti
             icon: mdi:file-pdf-box
@@ -35,5 +43,4 @@ views:
               confirmation:
                 text: Scaricare sul server Home Assistant le fatture ATS mancanti?
           - type: custom:ats-invoice-history-card
-            entity: sensor.ats_fatture_presenti
             title: Storico fatture ATS
