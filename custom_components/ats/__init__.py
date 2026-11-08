@@ -117,7 +117,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             )
         ]
     )
-    card_url = "/ats_static/invoice-history-card.js?v=0.4.0b8"
+    card_url = "/ats_static/invoice-history-card.js?v=0.4.0"
     lovelace_data = hass.data.get(LOVELACE_DATA)
     resources = lovelace_data.resources if lovelace_data else None
     if isinstance(resources, ResourceStorageCollection):

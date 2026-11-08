@@ -6,6 +6,7 @@ from typing import Any
 
 from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
+from homeassistant.const import MATCH_ALL
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -272,6 +273,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
     _attr_has_entity_name = True
+    # Home Assistant 2026.11 keeps state, state_class and unit in Recorder,
+    # but omits integration-specific attributes (invoice details, address, POD).
+    # Current attributes stay available to Lovelace / the ATS PDF viewer.
+    _unrecorded_attributes = frozenset({MATCH_ALL})
 
     def __init__(self, coordinator, entry, key, name, metric, unit=None, device_class=None):
         super().__init__(coordinator)

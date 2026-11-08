@@ -1,5 +1,6 @@
 """Guard that HA entity/device identifiers stay stable across the refactor."""
 import sys, types, unittest
+from homeassistant.const import MATCH_ALL
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "custom_components"))
@@ -46,7 +47,15 @@ class TestSensorIdentifiers(unittest.IsolatedAsyncioTestCase):
         await sensor_mod.async_setup_entry(hass, entry, add)
         keys = {e._key for e in captured}
         self.assertEqual(keys, EXPECTED_KEYS)
+        # Recorder must keep states/statistics, but not sensitive or verbose
+        # integration attributes. HA Core itself preserves state_class and units.
+        self.assertEqual(
+            sensor_mod.ATSAggregateSensor._unrecorded_attributes,
+            frozenset({MATCH_ALL}),
+        )
         for e in captured:
+            # Live attributes are still exposed to the dashboard/PDF viewer.
+            self.assertEqual(e.extra_state_attributes["ats_metric"], e._metric)
             # unique_id must stay entry_id-scoped (entity registry persistence)
             self.assertEqual(e._attr_unique_id, f"{entry.entry_id}_{e._key}")
             self.assertTrue(e.suggested_object_id.startswith("ats_"))

@@ -1,195 +1,132 @@
 # Alto Trevigiano Servizi (ATS) per Home Assistant
 
-🇮🇹 Italiano · [🇬🇧 English](README.en.md)
+[Italiano](README.md) · [English](README.en.md) · [Release v0.4.0](https://github.com/EnrCol/ats-ha/releases/tag/v0.4.0)
 
-Integrazione **non ufficiale** per Home Assistant che legge dall'area utente di [Alto Trevigiano Servizi](https://sgc.altotrevigianoservizi.it/) le tue forniture idriche, le fatture e le letture del contatore.
+**Integrazione non ufficiale** per leggere forniture idriche, fatture e letture dallo [Sportello Online Alto Trevigiano Servizi](https://sgc.altotrevigianoservizi.it/) direttamente in Home Assistant. Non è affiliata, approvata o supportata da ATS. Il portale può modificare le proprie API in qualsiasi momento.
 
-> Non è affiliata né approvata da Alto Trevigiano Servizi. Usa le stesse richieste che il portale esegue nel tuo browser, quindi può smettere di funzionare se il portale cambia.
+La **v0.4.0 è la prima release stabile del fork [EnrCol/ats-ha](https://github.com/EnrCol/ats-ha)**, sviluppata a partire dal progetto di [Manu-Nat](https://github.com/Manu-Nat/ats-ha). È stata collaudata su Home Assistant TEST Core **2026.11.0** con login reale, 19 sensori, 22 fatture, download e visualizzazione dei PDF, anche senza Browser Mod. È una release stabile del progetto, **non una certificazione ufficiale Home Assistant/ATS**.
 
-> **Beta.8 in preparazione sul fork `EnrCol/ats-ha`.** Verifica la release effettivamente disponibile prima di aggiornare un'installazione di produzione.
-> La modalità automatica usa **solo username e password dello Sportello Online ATS**: identifica il cliente e le forniture senza chiedere cookie o percorsi API.
-> Non sostituire una installazione live funzionante con questo ramo.
->
-> È supportata **una sola configurazione ATS per istanza Home Assistant**. Più forniture appartenenti allo stesso cliente vengono aggregate; più clienti distinti sotto lo stesso login non sono ancora supportati.
+## Funzionalità
 
-## Cosa fa
+- **Primo accesso semplificato:** soltanto username ATS, password ATS e intervallo di aggiornamento. URL HTTPS del portale, cliente, token, forniture ed endpoint API sono individuati automaticamente.
+- **Sessione e riautenticazione:** rinnovo del login quando ATS rifiuta la sessione; se la password non è più valida, Home Assistant richiede quella aggiornata senza ricreare le entità.
+- **Forniture idriche:** conteggio utenze totali e attive, dettagli di forniture anche cessate, contatore, stato, indirizzo e informazioni rese disponibili dal portale.
+- **Fatture e pagamenti:** numero totale, fatture non pagate, importi fatturati/pagati/residui, stato dell'ultima fattura, prossima scadenza quando esiste, consumo fatturato e totale dell'anno corrente.
+- **Storico economico per anno:** gruppi per anno di **emissione** con numero di fatture, somma fatturata e pagata; elenco cronologico con importo, scadenza, stato e disponibilità del PDF. Dati incompleti rimangono `unknown`/`null`, senza totali parziali ingannevoli.
+- **Letture contatore:** ultima lettura, data, consumo dell'ultima lettura e storico. La data visualizzata è `GG-MM-AAAA`, con `data_iso` utilizzabile nei template.
+- **Previsione annua (m³/anno):** calcolo dalle ultime due letture **effettive e validate** di ogni contatore attivo; evita di combinare forniture cessate o contatori diversi. Se mancano dati sufficienti il risultato è `unknown`, ma resta consultabile negli attributi l'eventuale stima annua comunicata da ATS.
+- **PDF fatture su richiesta:** azione `ats.download_invoices`, archivio locale privato per anno, salto dei file già presenti, recupero di singola fattura opzionale.
+- **Card Lovelace inclusa:** storico espandibile per anno, pulsanti **Apri PDF** e **Scarica PDF**, visualizzatore interno PDF.js con navigazione delle pagine e zoom; compatibile anche con la Companion App Android.
+- **Card portabile:** nessun `entity_id` obbligatorio. I sensori hanno l'attributo tecnico `ats_metric` e la card individua automaticamente il sensore dello storico; gli esempi YAML non richiedono di rinominare entità.
+- **Risorsa JavaScript automatica:** registrazione e aggiornamento della card nelle risorse Lovelace in modalità storage, senza copiare file in `/config/www`. **Browser Mod non è richiesto**.
 
-- Utenze (`supply-light`): stato, contatore e dati della fornitura.
-- Fatture (`invoice`): importi, residui, pagamenti, scadenze e consumi fatturati.
-- Letture del contatore (`reading-base`): ultima lettura, consumo e storico. È facoltativa.
+### Tutti i 19 sensori
 
-Tutto viene esposto come sensori sotto un unico dispositivo chiamato **ATS**.
+Gli `entity_id` sono assegnati da Home Assistant: possono avere prefissi di area/dispositivo o nomi personalizzati. La colonna `ats_metric` è il riferimento stabile da usare per una dashboard portabile; i `unique_id` delle installazioni precedenti sono preservati.
 
-### Sensori
-
-Gli `entity_id` indicati nella tabella sono **esempi**, non nomi garantiti: Home Assistant può aggiungere prefissi di area/dispositivo o conservarne di personalizzati. Ogni sensore ATS espone l'attributo stabile `ats_metric`, utilizzato dagli esempi YAML per individuarlo senza conoscere l'ID.
-
-| Entità | Contenuto |
+| `ats_metric` | Sensore / dato |
 |---|---|
-| `sensor.ats_utenze_attive` / `sensor.ats_utenze_totali` | Numero di utenze attive e totali |
-| `sensor.ats_dettagli_utenze_attive` | Nome visualizzato **Dettagli utenze**: comprende forniture attive e cessate negli attributi `utenza_1`, `utenza_2`… |
-| `sensor.ats_fatture_presenti` / `sensor.ats_fatture_non_pagate` | Conteggio fatture; `fatture_presenti` espone anche `riepilogo_annuale` e `storico_fatture` negli attributi |
-| `sensor.ats_totale_fatture` / `sensor.ats_totale_pagato` / `sensor.ats_totale_residuo_da_pagare` | Totali in € |
-| `sensor.ats_totale_fatture_anno_corrente` | Somma delle fatture emesse nell'anno solare corrente (€), con anno e numero fatture negli attributi |
-| `sensor.ats_prossima_scadenza_fattura` / `sensor.ats_importo_prossima_scadenza` | Scadenza e importo residuo della prossima fattura aperta |
-| `sensor.ats_stato_ultima_fattura` | Stato dell'ultima fattura, con numero, periodo, importo e residuo negli attributi |
-| `sensor.ats_consumo_fatturato_totale` | Somma dei consumi presenti sulle fatture, con unità **m³** (non equivale alla lettura cumulativa) |
-| `sensor.ats_dettagli_fatture` | Attributi `fattura_1`, `fattura_2`… con i campi originali ISO e nuove date `emissione_formattata` / `scadenza_formattata` in formato `GG-MM-AAAA` |
-| `sensor.ats_ultima_lettura_contatore` | Ultima lettura in m³ |
-| `sensor.ats_consumo_ultima_lettura` / `sensor.ats_data_ultima_lettura` | Consumo e data dell'ultima lettura; lo stato della data è `GG-MM-AAAA`, l'attributo `data_iso` conserva `AAAA-MM-GG` |
-| `sensor.ats_dettagli_letture_contatore` | Attributi `lettura_1`, `lettura_2`… con lo storico delle letture |
-| `sensor.ats_previsione_consumo_annuo` | Consumo annualizzato in m³/anno dalle ultime due letture effettive validate per contatore attivo, con confronto alla stima ATS negli attributi |
+| `active_supplies` | Utenze attive |
+| `total_supplies` | Utenze totali |
+| `supply_details` | Dettagli utenze (anche cessate) |
+| `invoice_count` | Fatture presenti; attributi `storico_fatture` e `riepilogo_annuale` |
+| `unpaid_count` | Fatture non pagate |
+| `remaining_total` | Totale residuo da pagare (€) |
+| `total_amount` | Totale fatture (€) |
+| `invoices_current_year` | Totale fatture emesse nell'anno corrente (€) |
+| `paid_total` | Totale pagato (€) |
+| `next_expiry_amount` | Importo della prossima fattura da pagare (€) |
+| `next_expiry_date` | Data della prossima scadenza |
+| `consumption` | Consumo fatturato complessivo (m³), non lettura cumulativa |
+| `last_status` | Stato dell'ultima fattura |
+| `invoice_details` | Dettagli individuali delle fatture |
+| `last_reading_value` | Ultima lettura contatore (m³) |
+| `last_reading_consumption` | Consumo dell'ultima lettura (m³) |
+| `annual_consumption_forecast` | Previsione annua da letture validate (m³/anno) e stima ATS negli attributi |
+| `last_reading_date` | Data ultima lettura (`GG-MM-AAAA` + attributo `data_iso`) |
+| `reading_details` | Storico e dettagli letture contatore |
 
-Con login automatico le fatture vengono richieste senza data iniziale fissa e le letture su una finestra mobile di 365 giorni; con cookie manuale il percorso API delle letture è facoltativo.
+#### Precisazioni sui calcoli
 
-I sensori in m³ e m³/anno **suggeriscono la visualizzazione senza decimali**, senza arrotondare i valori effettivamente forniti a Home Assistant. Gli utenti possono cambiare la precisione dalle impostazioni dell'entità. Il sensore `Data ultima lettura` è testuale: mostra `GG-MM-AAAA` e conserva l'originale `AAAA-MM-GG` nell'attributo `data_iso`. Non ha più `device_class: date`, quindi chi usa questo sensore per calcoli o template deve leggere `data_iso`. Per l'aggiornamento del template della dashboard Energia, consulta [la migrazione beta.5](docs/dashboard-energia-ats-beta5.md).
+Lo storico `riepilogo_annuale` e il totale dell'anno corrente usano la **data di emissione** della fattura, non il periodo fatturato. Se un importo è assente, il totale annuale corrispondente è `null` anziché una somma incompleta. Per le fatture saldate, il flag `Payed=true` prevale su eventuali incongruenze del campo ATS `ToPay`.
 
-### Storico economico e calcoli annuali
+La previsione dei consumi usa la differenza delle ultime due letture validate per contatore, divisa per i giorni trascorsi e moltiplicata per 365. Non è una misura in tempo reale. Per contatori attivi senza due letture valide, restituisce `unknown`. I valori in m³ sono suggeriti senza decimali solo a livello di visualizzazione: la precisione numerica viene conservata.
 
-- **Fatture presenti:** il valore resta il numero totale restituito da ATS. L'attributo `riepilogo_annuale` raggruppa per anno di **emissione**, indicando `numero_fatture`, `totale_fatturato` e `totale_pagato`; `storico_fatture` contiene, in ordine dalla più recente, anno, importo, emissione, scadenza, stato e importo pagato (quando disponibile). Le date di questi nuovi attributi sono nel formato `GG-MM-AAAA`. L'attributo `fatture_senza_data_emissione` conta eventuali documenti non assegnabili a un anno.
-- **Valori mancanti:** se una fattura non riporta l'importo totale o pagato, il corrispondente totale annuale è `null`, anziché una somma parziale potenzialmente fuorviante. Le fatture senza data rimangono nello storico, ma non entrano nei totali annuali. Il sensore `Dettagli fatture` mantiene tutti gli attributi esistenti e le date ISO, aggiungendo `anno`, `emissione_formattata` e `scadenza_formattata`.
-- **Totale fatture anno corrente:** usa `EmissionDate` (data di emissione), non la scadenza né il periodo fatturato. Se ci sono fatture ma nessuna nell'anno corrente, il valore è `0 €`. Con elenco fatture vuoto o importo annuale non valido restituisce `unknown`.
-- **Previsione consumo annuo:** per ogni contatore di una fornitura attiva considera le due letture effettive (`Effective=true`) e validate positivamente più recenti, con date distinte. Formula: `(lettura recente - lettura precedente) × 365 / giorni tra le letture`. Se più contatori sono attivi, somma le proiezioni **solo quando tutti dispongono di una coppia valida**. Non include i contatori delle forniture cessate; dati insufficienti o letture decrescenti danno `unknown`.
-- La previsione è una **proiezione storica**, non una lettura in tempo reale: gli attributi riportano le date, il periodo analizzato e la stima annuale `EstimatedAnnualConsumptyion` comunicata da ATS. Se l'ultima lettura è vecchia, la proiezione può non rappresentare il consumo attuale.
+## Installazione v0.4.0
 
-## Installazione
+### Marketplace / HACS (consigliato)
 
-### Con HACS (dopo la pubblicazione su `main`)
+1. Apri il **Marketplace** di Home Assistant (o HACS, se presente). Aggiungi `EnrCol/ats-ha` fra i repository personalizzati, categoria **Integrazione**.
+2. Installa **Alto Trevigiano Servizi (ATS)** nella versione **v0.4.0**, non una vecchia beta.
+3. **Riavvia Home Assistant** per caricare il codice dell'integrazione.
+4. Apri **Impostazioni → Dispositivi e servizi → Aggiungi integrazione → Alto Trevigiano Servizi**.
+5. Inserisci **Username ATS**, **Password ATS** e, se desiderato, **Intervallo aggiornamento** (default **60 minuti**, consentiti **5–1440**). Non servono URL, cookie o percorsi API.
+6. Attendi la creazione del dispositivo **ATS** e dei sensori. Le credenziali sono quelle dello **Sportello Online ATS**, non SPID/CIE.
 
-> **Attenzione:** HACS usa normalmente il branch predefinito del repository (`main`), che al momento non contiene questa versione sperimentale. Aggiungere il repository a HACS **non installa** automaticamente `feat/public-ats-onboarding`.
+### Installazione manuale
 
-1. In HACS apri il menu ⋮ → **Repository personalizzati**.
-2. Incolla l'URL di questo repository, scegli la categoria **Integrazione** e premi **Aggiungi**.
-3. Cerca **Alto Trevigiano Servizi (ATS)**, scaricala e **riavvia Home Assistant**.
+Scarica il [pacchetto della release v0.4.0](https://github.com/EnrCol/ats-ha/archive/refs/tags/v0.4.0.zip). Copia **l'intera cartella** `custom_components/ats/` in `/config/custom_components/ats/`, **compresa `www/`**. Riavvia Home Assistant e completa la configurazione tramite l'interfaccia. Non copiare credenziali o file `.storage` da altre installazioni.
 
-### Beta tramite Marketplace
+Le impostazioni manuali legacy di una configurazione già presente (cookie, URL e percorsi API) restano disponibili nelle **opzioni dell'integrazione** per compatibilità. Non vengono richieste durante un primo avvio nuovo.
 
-Se usi il nostro fork `EnrCol/ats-ha`, attiva le **prerelease** per il repository e usa **Installa un'altra versione** per scegliere il tag beta desiderato. Il branch `main` del fork non contiene ancora il nuovo onboarding, quindi **non installare la versione identificata dal vecchio SHA `2fdb8b2`**.
+## Dashboard e card di esempio
 
-### Manuale (per provare questo branch)
+Sono inclusi due esempi pronti da incollare:
 
-Scarica lo ZIP del ramo [`feat/public-ats-onboarding`](https://github.com/EnrCol/ats-ha/archive/refs/heads/feat/public-ats-onboarding.zip), estrailo e copia la cartella `custom_components/ats` in `/config/custom_components/ats`. Riavvia Home Assistant **solo su un'istanza di test**; non sostituire una configurazione live funzionante prima della validazione reale.
+- **[Card completa ATS](examples/ats-card.yaml):** un blocco `vertical-stack` con riepilogo utenze/fatture/consumi, pulsante di download e storico interattivo.
+- **[Dashboard completa ATS](examples/ats-dashboard.yaml):** una vista Lovelace con le medesime funzioni.
+- **[File JavaScript della card](custom_components/ats/www/invoice-history-card.js):** già distribuito con l'integrazione e registrato automaticamente; non copiarlo in `www` manualmente.
 
-### Aggiunta dell'integrazione
+Per usare la card completa: apri una dashboard → **Modifica dashboard → Aggiungi scheda → Manuale**, poi incolla il contenuto di `examples/ats-card.yaml`. Per lo storico da solo basta:
 
-**Impostazioni → Dispositivi e servizi → Aggiungi integrazione → Alto Trevigiano Servizi (ATS)**. Per la modalità automatica inserisci username e password dello Sportello Online ATS, lascia vuoti i percorsi API e il cookie, quindi conferma. Non usare SPID/CIE.
+```yaml
+type: custom:ats-invoice-history-card
+title: Storico fatture ATS
+```
 
-## Configurazione automatica (consigliata)
+**Non occorre impostare `entity:`:** la card trova il sensore con `ats_metric: invoice_count` anche se Home Assistant gli assegna un ID come `sensor.locale_tecnico_ats_ats_fatture_presenti`. Se eccezionalmente ci sono più sensori di storico possibili, puoi specificare `entity: sensor.ID_REALE`. Il riepilogo Markdown degli esempi usa `integration_entities('ats')` e `ats_metric`, senza ID fissi.
 
-1. Accedi a Home Assistant e apri la procedura di aggiunta dell'integrazione ATS.
-2. Lascia l'**URL base** precompilato (`https://sgc.altotrevigianoservizi.it`).
-3. Inserisci **username e password** dello Sportello Online ATS.
-4. Lascia **vuoti** `Percorso API utenze`, `Percorso API fatture`, `Percorso API letture` e `Cookie`.
-5. Conferma: l'integrazione verifica il login, recupera dall'HTML autenticato il token di sessione e il codice cliente, quindi interroga le API delle forniture, delle fatture e delle letture.
+Dopo la prima installazione o un aggiornamento, esegui un refresh completo della pagina oppure chiudi e riapri la Companion App. Su Lovelace in modalità **storage**, il modulo `/ats_static/invoice-history-card.js?v=0.4.0` viene aggiunto/aggiornato automaticamente fra le risorse. In modalità **YAML**, se il caricamento frontend automatico non è disponibile, potrebbe essere necessario dichiarare quella risorsa come `module` nella configurazione Lovelace.
 
-L'elenco delle forniture include anche quelle cessate; le fatture e le letture vengono aggregate per le forniture del cliente selezionato. Non è necessario copiare dati dagli strumenti sviluppatore. È previsto il rinnovo del login quando il portale rifiuta la sessione.
+**Non serve Browser Mod**, né un'altra card di terze parti.
 
-## Configurazione manuale (legacy)
+### PDF: download, archivio e visualizzazione
 
-Usala solo per mantenere un'installazione precedente o se la configurazione automatica non è applicabile. Senza username/password servono un **cookie HTTP manuale** e i **percorsi API utenze e fatture**; il percorso letture è facoltativo. Con credenziali e percorsi manuali resta disponibile una modalità di compatibilità che rinnova il token di sessione.
+1. Premi **Scarica fatture ATS mancanti** nella card completa oppure esegui l'azione `ats.download_invoices`.
+2. L'azione, senza parametri, scarica i PDF disponibili sul portale che non sono ancora nell'archivio locale; con `invoice_number` permette di richiedere una singola fattura.
+3. I documenti sono salvati in `/media/ats/fatture/ANNO/NUMERO.pdf`. I file già esistenti non vengono sovrascritti. **Non è previsto il download automatico a ogni aggiornamento dei sensori.**
+4. Nello storico apri un documento con **Apri PDF** oppure usa **Scarica PDF** per salvarlo sul dispositivo.
 
-Per individuare i percorsi:
+Il viewer usa PDF.js caricato dalla CDN `cdnjs.cloudflare.com` alla prima apertura (serve accesso Internet a tale host). **I dati PDF non sono inviati alla CDN**. Se la CDN non è disponibile, la funzione **Scarica PDF** continua a funzionare.
 
-1. Accedi al portale ATS nel browser e apri **Strumenti sviluppatore → Rete → Fetch/XHR**.
-2. Visita le pagine **Forniture**, **Fatture** e, se necessario, **Letture**.
-3. Copia solo la parte dell'URL che parte da `/webapi/` per le rispettive richieste `supply-light`, `invoice`, `reading-base`; non includere il dominio. Gli URL possono contenere token di sessione: trattali come credenziali.
-4. Nella sola modalità cookie, inserisci anche il valore dell'intestazione `Cookie` nel campo dedicato. I cookie scadono e vanno sostituiti manualmente.
+L'API `GET /api/ats/invoice/{year}/{number}` richiede autenticazione Home Assistant, convalida anno/numero e serve solo fatture conosciute, presenti nell'archivio. I PDF **non** sono pubblicati in `/local` o `/config/www`. La presenza del flag `pdf_disponibile` nel sensore indica disponibilità sul **portale ATS**, non prova che il file sia stato già scaricato localmente.
 
-L'intervallo di aggiornamento è in minuti (da 5 a 1440, predefinito 60).
+**Home Assistant Container:** rendi persistente `/media` e includila nei backup se vuoi conservare i PDF locali. La cartella `/config` deve essere persistente per conservare configurazione e integrazione.
 
-> **Privacy:** password, cookie, token AT negli URL e codici cliente sono dati riservati. Non pubblicarli in issue, log o screenshot. Oscurali prima di condividere diagnostiche.
+## Privacy: sensori, Recorder, PDF e backup
 
-## Durata della sessione
+Questa release applica `_unrecorded_attributes = frozenset({MATCH_ALL})` ai **19 sensori ATS**: Home Assistant continua a leggere tutti gli attributi correnti (inclusi `ats_metric`, `storico_fatture`, `riepilogo_annuale`, `indirizzo`, `pod` e dettagli economici) per dashboard e card, ma **Recorder non registra questi attributi specifici dell'integrazione nelle nuove righe di storico**. Gli **stati dei sensori** e i metadati nativi necessari alle statistiche (unità, `state_class` e simili) rimangono registrabili. L'installazione non aggiunge alcuna regola globale `recorder: exclude` e non altera lo storico delle altre integrazioni.
 
-Con **username e password ATS** l'integrazione esegue il login al portale e riprova dopo un rifiuto della sessione. Questo meccanismo non implementa il login SPID/CIE né la firma HMAC. La durata della sessione non è documentata e il comportamento su altri account richiede ulteriori test.
+**Attenzione:** la modifica è **non retroattiva**. Gli attributi salvati dalle beta precedenti possono rimanere nel database Recorder e nei vecchi backup fino alla loro naturale eliminazione o a una pulizia dedicata. Il sensore mostra comunque i dettagli **in tempo reale** a qualunque utente HA che abbia accesso a quelle entità; escludere dal Recorder non è una misura di controllo degli accessi.
 
-Se ATS rifiuta esplicitamente username o password, Home Assistant avvia la procedura di **riautenticazione**: inserisci soltanto la nuova password e l'integrazione ricarica i dati conservando le entità. Errori di rete e modifiche al portale non avviano una richiesta di password. In modalità cookie manuale, un cookie revocato o scaduto deve essere sostituito nelle opzioni.
+I file `/media/ats/fatture/ANNO/NUMERO.pdf` contengono potenzialmente **nome, indirizzo, codice fiscale, importi e altri dati personali** presenti nella bolletta completa. Sono conservati in locale e non sono resi pubblici in `/local`, ma possono essere letti da utenti autorizzati di Home Assistant, da chi accede al filesystem, al Media browser (ove supportato), agli snapshot o ai backup. Proteggi questi accessi, includi `/media` nel backup solo quando necessario e applica una conservazione adeguata.
 
-## Sicurezza
+## Sicurezza e limiti
 
-- Usa esclusivamente le credenziali di accesso **allo Sportello Online ATS**; non inserire credenziali SPID/CIE.
-- Password ATS e cookie sono memorizzati nella configurazione Home Assistant; non sono cifrati come in un password manager. Proteggi backup, file e accesso all'istanza.
-- L'integrazione evita di scrivere cookie, password e token AT nei messaggi di log ed errore. Il token AT presente nell'URL API è una credenziale di accesso: non condividere URL completi.
-- Il portale segnala con un header `deprecated` che in futuro le richieste senza firma HMAC non saranno più accettate. Questa versione **non** implementa HMAC.
+- Proteggi le credenziali ATS conservate nella configurazione Home Assistant e i relativi backup. Non condividere password, cookie, codici cliente, token o URL di richieste firmate.
+- L'integrazione usa richieste WebForms e API osservate nel portale; se ATS modifica il portale, il login, la scoperta o il recupero dei PDF possono smettere di funzionare.
+- È supportata **una sola configurazione ATS per istanza**: vengono aggregate più forniture dello stesso cliente, non più clienti distinti associati allo stesso login.
+- Non sono supportati login SPID/CIE. Il portale ha segnalato una futura necessità di firma **HMAC**, non ancora implementata.
+- `unknown` è corretto se non ci sono fatture aperte oppure mancano due letture validate per costruire la previsione; non sostituirlo con 0 nei calcoli.
+- La release è stata verificata su **Home Assistant Core 2026.11.0** in TEST; non sono state collaudate automaticamente tutte le versioni o tutti i tipi di account ATS. Storici Recorder delle vecchie installazioni possono mostrare avvisi in caso di ripetute rimozioni/reinstallazioni.
 
-## Limiti
+## Verifiche, aggiornamenti e assistenza
 
-- I campi sono letti dai JSON osservati nel portale; l'integrazione non inventa altri endpoint e non scarica i PDF delle fatture.
-- La modalità automatica dipende dall'oggetto `sol.conf` nell'HTML autenticato di ATS: se il portale cambia, la scoperta può smettere di funzionare.
-- La configurazione resta limitata a un cliente per istanza Home Assistant; la selezione di più clienti sotto un solo login non è supportata.
-- I valori assenti restano `unknown`, non vengono sostituiti con zero.
-- Il consumo fatturato totale somma il campo `Consumption` delle fatture ricevute: può coprire più periodi e non è una lettura cumulativa del contatore.
+Sulla beta.8 alla base della release sono passati **133 test Python, 3 subtest, 6 test JavaScript**, più le verifiche di sintassi, Hassfest e HACS. Il collaudo su TEST ha confermato login, 19 sensori con `ats_metric`, 22 fatture, dashboard senza `entity_id` fissi, download PDF e visualizzazione nella card senza Browser Mod. I dati sono esempi del **collaudo**, non fatture o credenziali incluse nel repository.
 
-## Risoluzione problemi
+- [Note di rilascio v0.4.0](docs/releases/v0.4.0.md)
+- [Checklist di installazione e test](docs/test-ha-clean.md)
+- [Migrazione template data/consumi](docs/dashboard-energia-ats-beta5.md)
+- [Problemi e richieste](https://github.com/EnrCol/ats-ha/issues)
 
-- **Errore nella configurazione automatica:** verifica le credenziali dello Sportello Online ATS e la disponibilità del portale. Se compare `discovery_failed`, ATS potrebbe aver modificato l'HTML o i dati della sessione.
-- **Modalità manuale:** controlla cookie e percorsi API; se la sessione scade, aggiorna il cookie.
-- **Sensori delle letture `unknown`:** controlla la risposta API; con cookie manuale configura anche il percorso delle letture.
-- **ID diversi da `sensor.ats_…`:** è normale che Home Assistant aggiunga prefissi di area/dispositivo. Gli ID esistenti sono preservati; **non occorre rinominarli** per utilizzare la card o gli esempi della beta.8. Per un'automazione personale utilizza l'ID effettivamente assegnato alla tua entità.
-- Per i log, attiva il livello debug per `custom_components.ats` e non condividere righe che contengono cookie o codici.
-
-## Segnalare problemi
-
-Apri una issue su GitHub descrivendo versione di Home Assistant, versione dell'integrazione e l'errore del log, **senza** cookie né codici dell'account.
-
-## Beta.8 — installazione completa con PDF e card
-
-Questa versione include **autenticazione automatica ATS**, sensori, storico fatture,
-correzione del flag `da_pagare`, azione `ats.download_invoices`, archivio PDF
-privato in `/media/ats/fatture/ANNO/` e una card Lovelace con visualizzazione
-PDF.js **direttamente in Home Assistant** (funziona anche nella Companion App
-Android, dopo il caricamento della risorsa).
-
-### Installazione pulita
-
-1. In **Marketplace** aggiungi il repository personalizzato **`EnrCol/ats-ha`**
-   come *Integrazione* e installa la prerelease **`v0.4.0-beta.8`** quando
-   disponibile. In alternativa copia la cartella **`custom_components/ats/`**
-   dal pacchetto pubblicato in `/config/custom_components/ats/` mantenendo
-   anche la sottocartella **`www/`**, quindi riavvia Home Assistant.
-2. Aggiungi l'integrazione **Alto Trevigiano Servizi (ATS)** da
-   *Impostazioni → Dispositivi e servizi*. Inserisci **le tue credenziali del
-   portale ATS**, non SPID/CIE; il rilevamento di cliente e forniture è
-   automatico. Non copiare la configurazione dall'istanza di produzione.
-3. Crea una dashboard e incolla l'esempio completo
-   [`examples/ats-card.yaml`](examples/ats-card.yaml) nell'editor YAML di
-   una scheda manuale. Per una dashboard intera, usa
-   [`examples/ats-dashboard.yaml`](examples/ats-dashboard.yaml).
-   La card `custom:ats-invoice-history-card` viene caricata **automaticamente
-   dall'integrazione**: non devi aggiungere risorse Lovelace né spostare JS in
-   `/config/www`. Al primo avvio aggiorna la pagina / riavvia la Companion App.
-4. Premi **Scarica fatture mancanti**. Il servizio salva soltanto i PDF non
-   già presenti. I file sono privati, ordinati per anno in `/media/ats/fatture/`.
-5. Nello storico premi **Apri PDF** per la visualizzazione interna, oppure
-   **Scarica PDF** per ottenere una copia sul dispositivo.
-
-**Sicurezza:** il PDF è letto da un endpoint Home Assistant autenticato
-`GET /api/ats/invoice/{year}/{number}`, che verifica identità fattura e
-percorso. Non rendere pubbliche fatture in `/config/www` o `/local`.
-PDF.js è caricato dalla CDN **cdnjs.cloudflare.com** alla prima apertura
-(è richiesta connettività verso tale host); i dati delle fatture restano
-nella WebView del browser. In caso di CDN bloccata, **Scarica PDF** continua
-a funzionare.
-
-**Persistenza e backup:** su Home Assistant Container configura il mount
-persistente della cartella `/media`. I backup devono includerla, oppure
-prevedi un backup dedicato dell'archivio ATS.
-
-**Test e limiti:** usa la [checklist per istanza pulita](docs/test-ha-clean.md)
-per verificare autenticazione, sensori, import, PDF, sicurezza e Android.
-La disponibilità di un PDF sul portale (`PdfExist`) **non prova** da sola
-che il file sia stato già salvato in `/media`; il pulsante di download
-mancanti deve essere eseguito prima della prima apertura. Nessuna fattura
-o credenziale di esempio è inclusa nel repository.
-
-
-### Beta.8 — primo avvio semplificato e risorse Lovelace
-
-- **Nuova configurazione:** richiede solo *username ATS*, *password ATS* e *intervallo di aggiornamento* (default 60 minuti). Nessun URL, percorso API o cookie da digitare. Gli utenti con configurazioni legacy già registrate mantengono le impostazioni manuali tramite *Configura*.
-- **Card:** con Lovelace in modalità storage l'integrazione registra il modulo `/ats_static/invoice-history-card.js?v=0.4.0b8` direttamente tra le **Risorse della dashboard**, senza interventi dell'utente e senza duplicarlo nei riavvii. Dopo il primo riavvio aggiorna completamente il browser, oppure chiudi e riapri la Companion App. Con Lovelace in modalità YAML è disponibile il caricamento frontend di fallback; se non viene caricato, aggiungi il modulo alle risorse YAML.
-- **Identificazione portabile:** l'attributo `ats_metric` identifica in modo stabile ogni sensore, indipendentemente dall'`entity_id`. Il riepilogo degli esempi YAML usa `integration_entities('ats')` e `ats_metric`; la card individua automaticamente lo storico fatture e non richiede più `entity:`. È comunque possibile indicare `entity:` quando serva una scelta esplicita. Nessun `unique_id` o ID registrato viene modificato.
-- **Sicurezza:** i documenti restano in `/media/ats/fatture/`, il viewer usa `fetchWithAuth()` e PDF.js, senza rendere le bollette pubbliche in `/local`.
-
-### Card beta.8 — requisiti e comportamento
-
-La card dello storico ATS **non richiede Browser Mod** e utilizza una finestra HTML nativa (`dialog`) con PDF.js caricato da CDN alla prima apertura. È sufficiente copiare `examples/ats-card.yaml` dopo aver installato e configurato l'integrazione; non occorre conoscere o rinominare gli `entity_id`. La risorsa Lovelace viene registrata e aggiornata automaticamente durante gli upgrade. Se il sensore non è ancora disponibile compare un messaggio; se ne esistono più di uno con lo stesso ruolo, specificare esplicitamente `entity: sensor.nome_effettivo` nella card.
+Per un problema indica versione di Home Assistant, release ATS, sintomo ed eventuali log **ripuliti dai dati sensibili**.
