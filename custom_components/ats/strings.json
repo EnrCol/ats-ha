@@ -3,16 +3,36 @@
     "step": {
       "user": {
         "title": "Alto Trevigiano Servizi",
-        "description": "Inserisci i percorsi API completi relativi al portale autenticato e il cookie di sessione. Non inserire credenziali SPID.",
+        "description": "Inserisci username e password dello Sportello Online ATS (non SPID/CIE). Cliente, utenze e percorsi API vengono rilevati automaticamente. Modifica solo l'intervallo se necessario.",
         "data": {
-          "base_url": "URL base del portale",
-          "supply_path": "Percorso API utenze (inizia con /webapi/...)",
-          "invoice_path": "Percorso API fatture (inizia con /webapi/...)",
-          "cookie": "Cookie HTTP della sessione ATS",
-          "scan_interval": "Intervallo aggiornamento in minuti",
-          "reading_path": "Percorso API letture contatore (opzionale, /webapi/api/v1/reading-base/...)"
+          "username": "Username ATS",
+          "password": "Password ATS",
+          "scan_interval": "Intervallo aggiornamento in minuti"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Riautenticazione Alto Trevigiano Servizi",
+        "description": "La password dello Sportello Online ATS non è più accettata. Inserisci la password aggiornata per lo stesso username.",
+        "data": {
+          "password": "Nuova password ATS"
         }
       }
+    },
+    "error": {
+      "invalid_url": "Inserisci l'indirizzo HTTPS ufficiale del portale ATS.",
+      "invalid_path": "Il percorso API deve iniziare con /.",
+      "required": "Questo campo è obbligatorio.",
+      "missing_credentials": "Inserisci sia username che password ATS.",
+      "missing_auth": "Inserisci username e password oppure il cookie di sessione.",
+      "invalid_interval": "Imposta un intervallo tra 5 e 1440 minuti.",
+      "invalid_auth": "Username o password ATS non accettati.",
+      "cannot_connect": "Impossibile verificare l'accesso ATS. Riprovare più tardi.",
+      "discovery_failed": "Accesso riuscito ma non è stato possibile rilevare cliente e forniture automaticamente. Riprova o usa la modalità manuale."
+    },
+    "abort": {
+      "already_configured": "L'integrazione ATS è già configurata.",
+      "reauth_not_supported": "Questa configurazione usa soltanto un cookie manuale; modifica il cookie nelle opzioni.",
+      "reauth_successful": "Credenziali ATS aggiornate."
     }
   },
   "options": {
@@ -23,10 +43,13 @@
           "base_url": "URL base del portale",
           "supply_path": "Percorso API utenze",
           "invoice_path": "Percorso API fatture",
-          "cookie": "Cookie HTTP della sessione ATS",
+          "cookie": "Cookie HTTP ATS (alternativa manuale)",
           "scan_interval": "Intervallo aggiornamento in minuti",
-          "reading_path": "Percorso API letture contatore (opzionale, /webapi/api/v1/reading-base/...)"
-        }
+          "reading_path": "Percorso API letture contatore (opzionale, /webapi/api/v1/reading-base/...)",
+          "username": "Username ATS",
+          "password": "Nuova password ATS (lascia vuoto per non modificarla)"
+        },
+        "description": "Puoi cambiare intervallo e percorsi API. Le credenziali sono memorizzate nella configurazione dell'integrazione, non nelle opzioni."
       }
     }
   }

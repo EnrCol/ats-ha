@@ -1,104 +1,129 @@
 # Alto Trevigiano Servizi (ATS) for Home Assistant
 
-[🇮🇹 Italiano](README.md) · 🇬🇧 English
+[Italiano](README.md) · English · [Stable v0.4.0](https://github.com/EnrCol/ats-ha/releases/tag/v0.4.0)
 
-**Unofficial** Home Assistant integration that reads your water supplies, invoices and meter readings from the [Alto Trevigiano Servizi](https://sgc.altotrevigianoservizi.it/) customer area.
+**Unofficial integration** that brings water supplies, invoices, payments and meter readings from the [Alto Trevigiano Servizi customer portal](https://sgc.altotrevigianoservizi.it/) into Home Assistant. This project is **not** affiliated with, approved by, or supported by ATS. Portal changes can affect the integration.
 
-> Not affiliated with or endorsed by Alto Trevigiano Servizi. It uses the same requests the portal makes in your browser, so it may stop working if the portal changes.
+**v0.4.0 is the first stable release of the [EnrCol/ats-ha fork](https://github.com/EnrCol/ats-ha)**, based on the original work by [Manu-Nat](https://github.com/Manu-Nat/ats-ha). It was functionally tested on Home Assistant TEST Core **2026.11.0**, with real ATS login, 19 sensors, 22 invoices, private PDF downloads, and the built-in Lovelace viewer. “Stable” indicates this project's release status, **not** official Home Assistant/ATS certification.
 
-## What it does
+## Features
 
-- Supplies (`supply-light`): status, meter and supply data.
-- Invoices (`invoice`): amounts, remaining balance, payments, due dates and billed consumption.
-- Meter readings (`reading-base`): latest reading, consumption and history. Optional.
+- **Minimal first-time configuration:** enter only your **ATS portal username**, **password**, and **polling interval** (default **60 minutes**, range 5–1440). ATS URL, session, customer code, supply IDs and API paths are discovered automatically. SPID/CIE login is not supported.
+- **Session handling:** automatically logs in and renews expired sessions; Home Assistant can request reauthentication after invalid credentials without recreating the sensors. Network/portal errors are distinguished from password errors.
+- **Water supplies:** active and total supply counts, meter number, address, status, balance and other available supply details, including discontinued supplies.
+- **Invoice overview:** total/unpaid counts, total billed/paid/outstanding amounts, current-year total, billed water volume, most recent invoice status and next due date when applicable.
+- **Yearly invoice history:** groups invoices by **issue year**, with yearly invoice count, billed and paid totals; chronological details with date, status, amount, payment and PDF availability. Missing financial data is represented as unknown/null instead of silently calculating misleading subtotals.
+- **Meter readings:** most recent reading, reading-related consumption and date, plus history. The displayed date uses `DD-MM-YYYY`; `data_iso` contains a machine-readable date for templates.
+- **Estimated yearly water usage (m³/year):** computes annualized usage from the two latest **effective, positively validated readings** for each active meter. The projection stays `unknown` if readings are insufficient; the portal's separate annual estimate may still be available in sensor attributes.
+- **Private on-demand invoice PDFs:** call the `ats.download_invoices` service to download missing documents. Existing PDFs are skipped without overwrite. No recurring download on every sensor refresh.
+- **Bundled Lovelace invoice history card:** expandable yearly sections, **Apri PDF / Open PDF** and **Scarica PDF / Download PDF** controls, a PDF.js in-app dialog with page navigation and zoom. Tested in the Android Home Assistant Companion App.
+- **Portable dashboards:** the card automatically finds ATS invoice history with no `entity:` setting; all 19 sensors expose a stable `ats_metric` attribute, and sample YAML uses `integration_entities('ats')` instead of fixed entity IDs.
+- **Automatic frontend resource:** registers/updates the JavaScript module in Lovelace storage mode. **Browser Mod is not required**; no copying JS into `/config/www`.
 
-Everything is exposed as sensors under a single device named **ATS**.
+### All 19 ATS sensor metrics
 
-### Sensors
+Home Assistant may prefix or rename actual `entity_id` values based on the device, area or an existing entity registry. The stable `ats_metric` attribute is intended for dynamic lookups. Existing unique IDs remain unchanged.
 
-| Entity | Content |
+| `ats_metric` | Sensor data |
 |---|---|
-| `sensor.ats_utenze_attive` / `sensor.ats_utenze_totali` | Active and total supplies |
-| `sensor.ats_dettagli_utenze_attive` | Attributes `utenza_1`, `utenza_2`… (status, service, address, meter, balance, estimated yearly consumption) |
-| `sensor.ats_fatture_presenti` / `sensor.ats_fatture_non_pagate` | Number of invoices and unpaid invoices |
-| `sensor.ats_totale_fatture` / `sensor.ats_totale_pagato` / `sensor.ats_totale_residuo_da_pagare` | Totals in € |
-| `sensor.ats_prossima_scadenza_fattura` / `sensor.ats_importo_prossima_scadenza` | Due date and remaining amount of the next open invoice |
-| `sensor.ats_stato_ultima_fattura` | Latest invoice status, with number, period, amount and remaining balance as attributes |
-| `sensor.ats_consumo_fatturato_totale` | Sum of the consumption on the invoices |
-| `sensor.ats_dettagli_fatture` | Attributes `fattura_1`, `fattura_2`… with every field of each invoice |
-| `sensor.ats_ultima_lettura_contatore` | Latest reading in m³ |
-| `sensor.ats_consumo_ultima_lettura` / `sensor.ats_data_ultima_lettura` | Consumption and date of the latest reading |
-| `sensor.ats_dettagli_letture_contatore` | Attributes `lettura_1`, `lettura_2`… with the readings history |
+| `active_supplies` | Active water supplies |
+| `total_supplies` | All water supplies |
+| `supply_details` | Supply details, including retired connections |
+| `invoice_count` | Invoice count plus `storico_fatture` and `riepilogo_annuale` attributes |
+| `unpaid_count` | Unpaid invoice count |
+| `remaining_total` | Total outstanding amount (€) |
+| `total_amount` | Total billed (€) |
+| `invoices_current_year` | Total invoices issued in the current year (€) |
+| `paid_total` | Total paid (€) |
+| `next_expiry_amount` | Amount of the next invoice due (€) |
+| `next_expiry_date` | Next due date |
+| `consumption` | Total invoiced volume (m³), not the meter's cumulative reading |
+| `last_status` | Latest invoice status |
+| `invoice_details` | Individual invoice metadata |
+| `last_reading_value` | Last meter reading (m³) |
+| `last_reading_consumption` | Consumption associated with the last reading (m³) |
+| `annual_consumption_forecast` | Annualized usage from validated readings; ATS estimate in attributes |
+| `last_reading_date` | Reading date as `DD-MM-YYYY`, plus ISO attribute |
+| `reading_details` | Meter reading history/details |
 
-The reading sensors stay `unknown` until you set the readings path.
+Invoice-year calculations use **issue date**, not billing-period dates. Paid invoices take precedence over potentially inconsistent raw `ToPay` flags. No data is invented for fields the portal does not provide. Forecasts are historical projections, not real-time usage measurements; the supplied m³ precision is retained even when HA suggests a no-decimal display.
 
-## Installation
+## Install v0.4.0
 
-### With HACS (recommended)
+### Marketplace / HACS (recommended)
 
-1. In HACS open the ⋮ menu → **Custom repositories**.
-2. Paste this repository's URL, choose the **Integration** category and click **Add**.
-3. Search for **Alto Trevigiano Servizi (ATS)**, download it and **restart Home Assistant**.
+1. In the Home Assistant **Marketplace** or HACS, add the custom repository `EnrCol/ats-ha`, category **Integration**.
+2. Install **Alto Trevigiano Servizi (ATS)** version **v0.4.0** (the stable release, not an older beta).
+3. **Restart Home Assistant** to activate the custom integration.
+4. Open **Settings → Devices & services → Add integration → Alto Trevigiano Servizi**.
+5. Enter your **ATS portal username and password**; optionally change the **polling interval** (60 minutes by default).
+6. Check that the **ATS** device and its 19 sensors appear. You need credentials for the ATS customer portal, not SPID/CIE credentials.
 
-### Manual
+### Manual installation
 
-Copy the `custom_components/ats` folder to `/config/custom_components/ats` and restart Home Assistant.
+Download the [v0.4.0 source archive](https://github.com/EnrCol/ats-ha/archive/refs/tags/v0.4.0.zip), copy the complete `custom_components/ats/` directory (including `www/`) into `/config/custom_components/ats/`, restart HA, and complete the integration flow. Keep `/config` persistent. Do **not** copy config entries, passwords or invoice files from another installation.
 
-### Adding the integration
+Existing legacy setups retain advanced options for cookie, HTTPS origin and API paths. Those fields are not shown in the first-run wizard.
 
-**Settings → Devices & services → Add integration → Alto Trevigiano Servizi (ATS)**, then fill in the form using the data from the next section.
+## Sample card and dashboard
 
-## How to find the configuration values
+The repository includes:
 
-The integration does not ask for a username and password: it uses the API request paths and the session cookie the portal uses while you are logged in. You get both from your browser's developer tools (the labels below are from Chrome; Edge and Firefox are very similar).
+- **[Complete ATS card](examples/ats-card.yaml):** a `vertical-stack` showing a summary of supplies/invoices/consumption, a button to download missing PDFs, and the yearly invoice browser.
+- **[Complete ATS dashboard](examples/ats-dashboard.yaml):** a full Lovelace dashboard with the same functionality.
+- **[Bundled card JavaScript](custom_components/ats/www/invoice-history-card.js):** distributed with the integration and automatically registered.
 
-1. Log in to the ATS customer area in your browser as usual.
-2. Press **F12** (or right-click → **Inspect**) and open the **Network** tab.
-3. Pick the **Fetch/XHR** filter so you only see API calls.
-4. With the tools open, browse the portal sections: **supplies**, **invoices** and **meter readings**. Each one triggers its own request. If the list is empty, reload the page with the Network tab already open.
-5. Click each request and, in the **Headers** tab, look at **Request URL**. You need these three:
+To use the card, open a dashboard → **Edit dashboard → Add card → Manual**, then paste `examples/ats-card.yaml`. To add only the yearly PDF history:
 
-   | Request | How to recognise it | Form field |
-   |---|---|---|
-   | Supplies | the URL contains `supply-light` | Supplies API path |
-   | Invoices | the URL contains `invoice` | Invoices API path |
-   | Readings | `…/webapi/api/v1/reading-base/<code>` | Readings API path (optional) |
+```yaml
+type: custom:ats-invoice-history-card
+title: Storico fatture ATS
+```
 
-6. From the URL copy **only the part starting with `/webapi/`**, query parameters included (for example `/webapi/api/v1/reading-base/<code>`). The base URL `https://sgc.altotrevigianoservizi.it` is already pre-filled.
-7. Still under **Headers**, scroll to **Request Headers** and copy the value of the **cookie** row (for example `ASP.NET_SessionId=…`), all of it, including the name before the `=` sign. It goes in the **Session HTTP cookie** field.
-8. Check that the request is a `GET` returning `200 OK`, and that the **Response** or **Preview** tab shows JSON with your data.
+No `entity:` is required; the card finds the unique sensor with `ats_metric: invoice_count`, regardless of its area/device prefix. If the card finds several possible invoice sensors, an explicit `entity: sensor.YOUR_ACTUAL_ID` override remains available. The Markdown summary in both examples also identifies each metric dynamically using `integration_entities('ats')`.
 
-The update interval is in minutes (5 to 1440, default 60).
+On first installation or update, hard-refresh the browser or restart the Companion App. In Lovelace **storage mode**, `/ats_static/invoice-history-card.js?v=0.4.0` is automatically registered/updated as a JavaScript module. In Lovelace **YAML resource mode**, manual module registration may be required if the automatic frontend fallback does not load it.
 
-> The paths contain codes tied to your account and the cookie works like a password. Never paste them in issues, forums, logs or screenshots. If you need to show something, blur the codes.
+**Browser Mod or any separate third-party card is not required.**
 
-## Session lifetime
+### PDF downloads and in-app viewer
 
-The integration uses the portal's session cookie and implements neither automatic SPID login renewal nor HMAC signing. So far, in real use, the cookie has stayed valid over time without needing renewal, but its lifetime is **not documented by the portal** and is not guaranteed: the session may end, for example after logging out of the portal, a revocation or a server-side expiry.
+1. Use the **Scarica fatture ATS mancanti** button in the complete card, or call `ats.download_invoices`.
+2. With no arguments, it downloads missing available invoices; optionally pass `invoice_number` for a specific document.
+3. Files are saved under `/media/ats/fatture/YEAR/INVOICE_NUMBER.pdf`. Existing files are not overwritten. PDFs are downloaded **on demand**, not during ordinary sensor polling.
+4. In the invoice history select **Apri PDF** to display a document in HA, or **Scarica PDF** to save it on the device.
 
-If it stops working, the update fails and Home Assistant shows the integration's update error. Repeat steps 1–7 to get a fresh cookie and update it in **Settings → Devices & services → ATS → Configure**: the integration reloads by itself. To avoid invalidating the cookie in use, do not log out of the portal in the browser you copied it from.
+PDF.js loads from `cdnjs.cloudflare.com` when opening a PDF. The browser/WebView needs network access to that CDN; the invoice contents themselves **are not sent to the CDN**. If PDF.js cannot load, the **Scarica PDF** button still provides a download.
 
-## Security
+The `GET /api/ats/invoice/{year}/{number}` endpoint requires HA authentication and validates that an invoice is known and locally archived. The files are **not** served from public `/local` or `/config/www` paths. The `pdf_disponibile` attribute indicates availability at the **ATS portal**, not guaranteed prior local download.
 
-- Do not enter SPID credentials or your portal password.
-- The cookie is stored in Home Assistant's configuration, which is not an encrypted secret store.
-- The integration does not write the cookie to the logs.
-- The portal returns a `deprecated` header saying requests without an HMAC signature will eventually stop being accepted. This version does **not** implement HMAC.
+For Home Assistant Container, persist `/media` if you need PDFs to survive redeployment and include it in an appropriately protected backup.
 
-## Limitations
+## Privacy: Recorder, documents and backups
 
-- Fields are read from the JSON observed in the portal; the integration does not guess other endpoints and does not download invoice PDFs.
-- A request working in the browser does not by itself guarantee the session can be reused from Home Assistant.
-- Missing values stay `unknown`; they are not replaced with zero.
-- Total billed consumption sums the `Consumption` field of the invoices received: it may span several periods and is not a cumulative meter reading.
+The integration declares `_unrecorded_attributes = frozenset({MATCH_ALL})` for all **19 ATS sensors**. All current live attributes remain readable by dashboards and the invoice card, including `ats_metric`, yearly invoice histories, invoice/supply details, addresses and meter identifiers. **New Recorder history rows exclude integration-specific attributes** while retaining sensor state values and core metadata needed for statistics (such as unit and `state_class`). The integration does not add a global `recorder: exclude` rule.
 
-## Troubleshooting
+**This is not retroactive.** Sensitive attributes recorded by earlier betas may still be present in the Recorder database and existing backups until normal retention or deliberate cleanup. Current attributes are still exposed to any HA user who has permission to read those sensors; Recorder minimization is not an access-control mechanism.
 
-- **Error when adding, or unavailable entities:** check that the paths start with `/`, include their codes and that the cookie is still valid (see *Session lifetime*).
-- **Reading sensors `unknown`:** the readings path is missing; add it from **Configure**.
-- **Entity IDs are not `sensor.ats_…`:** if you installed an earlier version, already registered IDs keep their old names. From the device page, ⋮ menu, use **Recreate entity IDs**.
-- For logs, enable debug level for `custom_components.ats` and do not share lines containing cookies or codes.
+The private local PDF directory `/media/ats/fatture/` may contain **full personal data** present in an invoice, such as names, postal addresses, tax identifiers, dates and amounts. These PDFs are not published through `/local`, but users with authorized Home Assistant, filesystem, Media browser (where supported), snapshot or backup access may be able to read them. Protect your HA installation, storage and backups appropriately.
 
-## Reporting issues
+## Security and known limitations
 
-Open a GitHub issue with your Home Assistant version, the integration version and the log error, **without** cookies or account codes.
+- ATS portal credentials are held in the Home Assistant config entry, **not encrypted as in a password manager**. Protect your config and backup copies. Do not publish credentials, signed URLs, cookies, account/customer codes or session tokens in bug reports.
+- PDF downloads validate the ATS signed HTTPS endpoint, expected host/path/query, content type and PDF signature; streaming size is limited and saved files are not overwritten. The local API also validates invoice identity/path and requires HA authentication.
+- The integration relies on ATS WebForms and portal APIs. Portal changes can break login, data discovery or PDF download.
+- **One ATS config entry per HA instance** is supported. Multiple supplies for the same customer are aggregated, but multiple distinct customer accounts under a single login are not currently supported.
+- No SPID/CIE login. ATS has indicated that HMAC-signed API requests may be required in future; this integration does not implement that future protocol.
+- Values remain `unknown` when there is no future unpaid invoice or too few validated readings. An unknown value should not be silently converted to zero.
+- The primary functional verification was on HA Core **2026.11.0** in TEST. Not every HA version/account type was tested. Repeated removal/reinstallation on the same TEST database may cause Recorder history-migration warnings unrelated to ATS data retrieval.
+
+## Verification and support
+
+The beta.8 foundation passed **133 Python tests, 3 subtests and 6 JavaScript tests**, plus syntax, Hassfest and HACS checks. The live-account TEST run verified the login, 19 ATS metrics, 22 invoices, portable sample YAML and the authenticated PDF viewer **without Browser Mod**. These counts describe the test account, **not content bundled in the repository**.
+
+- [v0.4.0 release notes](docs/releases/v0.4.0.md)
+- [Clean-install verification checklist](docs/test-ha-clean.md)
+- [Energy dashboard date/consumption migration](docs/dashboard-energia-ats-beta5.md)
+- [Report issues](https://github.com/EnrCol/ats-ha/issues)
+
+When reporting an issue, include HA version, ATS version, symptoms and redacted diagnostics; never include personal account or invoice details.
