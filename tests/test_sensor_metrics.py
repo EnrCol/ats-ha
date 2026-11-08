@@ -170,7 +170,8 @@ class TestInvoiceHistory(unittest.TestCase):
         history = out["storico_fatture"]
         self.assertEqual(len(history), 5)
         self.assertEqual(history[0], {
-            "anno": 2026, "importo_totale": 20.10,
+            "anno": 2026, "numero": None, "pdf_disponibile": False,
+            "importo_totale": 20.10,
             "emissione": "07-08-2026", "scadenza": "08-09-2026",
             "stato": "Pagata", "importo_pagato": 20.10,
         })

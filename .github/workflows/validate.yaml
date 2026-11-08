@@ -60,7 +60,7 @@ jobs:
       - name: Run Home Assistant integration tests
         run: |
           python -m pip install --disable-pip-version-check \
-            pytest-homeassistant-custom-component
+            pytest-homeassistant-custom-component home-assistant-frontend
           python -m pytest tests/ -q
 
   hassfest:

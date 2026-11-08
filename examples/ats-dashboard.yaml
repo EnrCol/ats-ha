@@ -5,36 +5,35 @@ views:
     icon: mdi:water
     type: masonry
     cards:
-      type: vertical-stack
-      cards:
-        - type: markdown
-          content: |
-            ## Acqua · ATS
-            **Utenze attive:** {{ states('sensor.ats_utenze_attive') }}
-            **Fatture disponibili:** {{ states('sensor.ats_fatture_presenti') }}
-            **Fatture da pagare:** {{ states('sensor.ats_fatture_non_pagate') }}
-            {% set residuo = states('sensor.ats_totale_residuo_da_pagare') %}
-            **Residuo:** {{ ('%.2f €' | format(residuo | float)) if is_number(residuo) else 'Non disponibile' }}
-            {% set previsione = states('sensor.ats_previsione_consumo_annuo') %}
-            {% set stima = state_attr('sensor.ats_previsione_consumo_annuo', 'stima_ats_m3_anno') %}
-            {% if is_number(previsione) %}
-            **Consumo annuo da letture:** {{ previsione | float | round(0) }} m³/anno
-            {% elif is_number(stima) %}
-            **Stima annua ATS:** {{ stima | float | round(0) }} m³/anno
-            {% else %}
-            **Consumo annuo:** Non disponibile
-            {% endif %}
-            **Ultima lettura:** {{ states('sensor.ats_data_ultima_lettura') }}
-        - type: button
-          name: Scarica fatture ATS mancanti
-          icon: mdi:file-pdf-box
-          show_state: false
-          tap_action:
-            action: perform-action
-            perform_action: ats.download_invoices
-            confirmation:
-              text: Scaricare sul server Home Assistant le fatture ATS mancanti?
-        - type: custom:ats-invoice-history-card
-          entity: sensor.ats_fatture_presenti
-          title: Storico fatture ATS
-
+      - type: vertical-stack
+        cards:
+          - type: markdown
+            content: |
+              ## Acqua · ATS
+              **Utenze attive:** {{ states('sensor.ats_utenze_attive') }}
+              **Fatture disponibili:** {{ states('sensor.ats_fatture_presenti') }}
+              **Fatture da pagare:** {{ states('sensor.ats_fatture_non_pagate') }}
+              {% set residuo = states('sensor.ats_totale_residuo_da_pagare') %}
+              **Residuo:** {{ ('%.2f €' | format(residuo | float)) if is_number(residuo) else 'Non disponibile' }}
+              {% set previsione = states('sensor.ats_previsione_consumo_annuo') %}
+              {% set stima = state_attr('sensor.ats_previsione_consumo_annuo', 'stima_ats_m3_anno') %}
+              {% if is_number(previsione) %}
+              **Consumo annuo da letture:** {{ previsione | float | round(0) }} m³/anno
+              {% elif is_number(stima) %}
+              **Stima annua ATS:** {{ stima | float | round(0) }} m³/anno
+              {% else %}
+              **Consumo annuo:** Non disponibile
+              {% endif %}
+              **Ultima lettura:** {{ states('sensor.ats_data_ultima_lettura') }}
+          - type: button
+            name: Scarica fatture ATS mancanti
+            icon: mdi:file-pdf-box
+            show_state: false
+            tap_action:
+              action: perform-action
+              perform_action: ats.download_invoices
+              confirmation:
+                text: Scaricare sul server Home Assistant le fatture ATS mancanti?
+          - type: custom:ats-invoice-history-card
+            entity: sensor.ats_fatture_presenti
+            title: Storico fatture ATS
