@@ -1,0 +1,16 @@
+download_invoices:
+  name: Scarica fatture
+  description: >
+    Scarica su richiesta i PDF delle fatture ATS disponibili,
+    evitando duplicati. Se non specifichi il numero, scarica tutte
+    le fatture mancanti. I file sono salvati in /media/ats/fatture/ANNO/.
+  fields:
+    invoice_number:
+      name: Numero fattura
+      description: >
+        Numero ATS della singola fattura (campo No).
+        Lascia vuoto per scaricare tutte le fatture mancanti.
+      required: false
+      example: "NUMERO_FATTURA_ATS"
+      selector:
+        text:

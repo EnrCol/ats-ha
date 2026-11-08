@@ -102,6 +102,8 @@ def _invoice_history(invoices: list[dict]) -> dict:
             issued.date() if issued is not None else date.min,
             {
                 "anno": year,
+                "numero": str(invoice.get("No") or "").strip() or None,
+                "pdf_disponibile": invoice.get("PdfExist") is True,
                 "importo_totale": amount,
                 "emissione": _display_date(invoice.get("EmissionDate")),
                 "scadenza": _display_date(invoice.get("ExpirationDate")),
@@ -452,7 +454,8 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
                     "periodo_a": i.get("PeriodTo"),
                     "consumo": i.get("Consumption"),
                     "pagata": i.get("Payed"),
-                    "da_pagare": i.get("ToPay"),
+                    "da_pagare": False if i.get("Payed") is True else i.get("ToPay"),
+                    "da_pagare_ats": i.get("ToPay"),
                     "pdf_disponibile": i.get("PdfExist"),
                 } for idx, i in enumerate(invoices)
             }

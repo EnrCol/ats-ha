@@ -19,6 +19,7 @@ jobs:
       - name: Check Python syntax and UI translation JSON
         run: |
           python -m compileall -q custom_components/ats
+          node --check custom_components/ats/www/invoice-history-card.js
           python - <<'PY'
           import json
           from pathlib import Path

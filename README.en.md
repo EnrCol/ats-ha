@@ -6,7 +6,7 @@
 
 > Not affiliated with or endorsed by Alto Trevigiano Servizi. It uses the same requests the portal makes in your browser, so it may stop working if the portal changes.
 
-> **Experimental branch `feat/public-ats-onboarding`.** This is not a public release yet.
+> **Beta.6 candidate in the `EnrCol/ats-ha` fork.** Check that the prerelease has actually been published before upgrading production.
 > Automatic mode uses **only your ATS online portal username and password** and discovers the customer and supplies without manual cookies or API paths.
 > Do not replace a working production installation with this branch.
 >
@@ -129,3 +129,42 @@ If ATS explicitly rejects your stored credentials, Home Assistant starts a **rea
 ## Reporting issues
 
 Open a GitHub issue with your Home Assistant version, the integration version and the log error, **without** cookies or account codes.
+
+## Beta.6 — complete installation with PDF viewer and example card
+
+This beta includes automatic ATS login, sensors, yearly invoice history, the
+`da_pagare` payment flag fix, `ats.download_invoices`, private invoice PDFs under
+`/media/ats/fatture/YEAR/` and a PDF.js Lovelace card that opens PDFs **inside
+Home Assistant**, including the Android Companion App.
+
+1. In Home Assistant **Marketplace**, add **`EnrCol/ats-ha`** as a custom
+   *Integration* repository and install prerelease **`v0.4.0-beta.6`** when
+   published. Alternatively copy the entire **`custom_components/ats/`**
+   directory (including its **`www/`** directory) into Home Assistant and
+   restart Core.
+2. Configure **Alto Trevigiano Servizi (ATS)** in Settings → Devices & services
+   with **your own ATS portal username and password** (not SPID/CIE).
+   Customer and supply discovery runs automatically.
+3. Paste [`examples/ats-card.yaml`](examples/ats-card.yaml) into a new
+   manual YAML dashboard card, or install the complete
+   [`examples/ats-dashboard.yaml`](examples/ats-dashboard.yaml) view.
+   The integration automatically registers the
+   `custom:ats-invoice-history-card` frontend module. **No separate resource
+   registration or /config/www file copy is needed.** Refresh the frontend
+   after the initial install.
+4. Click **Scarica fatture ATS mancanti** to download missing PDFs, then
+   **Apri PDF** to view a document in place or **Scarica PDF** to download
+   a local copy.
+
+**Security:** PDFs are served through the authenticated
+`/api/ats/invoice/{year}/{number}` endpoint, never through public
+`/local` paths. The PDF.js viewer lazy-loads from **cdnjs.cloudflare.com**;
+PDF bytes are processed in the browser and are not uploaded to the CDN.
+The download button still works if PDF.js cannot load.
+
+**Backup:** on HA Container, persist the `/media` directory and include it
+in backups. `PdfExist` reflects availability on the **ATS portal**, not whether
+the file has already been downloaded locally. See the
+[clean-instance test checklist](docs/test-ha-clean.md) for setup and
+verification. No personal invoice or credentials are distributed.
+

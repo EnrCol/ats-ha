@@ -6,7 +6,7 @@ Integrazione **non ufficiale** per Home Assistant che legge dall'area utente di 
 
 > Non è affiliata né approvata da Alto Trevigiano Servizi. Usa le stesse richieste che il portale esegue nel tuo browser, quindi può smettere di funzionare se il portale cambia.
 
-> **Ramo sperimentale `feat/public-ats-onboarding`.** Non è ancora una release pubblica.
+> **Beta.6 in preparazione sul fork `EnrCol/ats-ha`.** Verifica la release effettivamente disponibile prima di aggiornare un'installazione di produzione.
 > La modalità automatica usa **solo username e password dello Sportello Online ATS**: identifica il cliente e le forniture senza chiedere cookie o percorsi API.
 > Non sostituire una installazione live funzionante con questo ramo.
 >
@@ -129,3 +129,54 @@ Se ATS rifiuta esplicitamente username o password, Home Assistant avvia la proce
 ## Segnalare problemi
 
 Apri una issue su GitHub descrivendo versione di Home Assistant, versione dell'integrazione e l'errore del log, **senza** cookie né codici dell'account.
+
+## Beta.6 — installazione completa con PDF e card
+
+Questa versione include **autenticazione automatica ATS**, sensori, storico fatture,
+correzione del flag `da_pagare`, azione `ats.download_invoices`, archivio PDF
+privato in `/media/ats/fatture/ANNO/` e una card Lovelace con visualizzazione
+PDF.js **direttamente in Home Assistant** (funziona anche nella Companion App
+Android, dopo il caricamento della risorsa).
+
+### Installazione pulita
+
+1. In **Marketplace** aggiungi il repository personalizzato **`EnrCol/ats-ha`**
+   come *Integrazione* e installa la prerelease **`v0.4.0-beta.6`** quando
+   disponibile. In alternativa copia la cartella **`custom_components/ats/`**
+   dal pacchetto pubblicato in `/config/custom_components/ats/` mantenendo
+   anche la sottocartella **`www/`**, quindi riavvia Home Assistant.
+2. Aggiungi l'integrazione **Alto Trevigiano Servizi (ATS)** da
+   *Impostazioni → Dispositivi e servizi*. Inserisci **le tue credenziali del
+   portale ATS**, non SPID/CIE; il rilevamento di cliente e forniture è
+   automatico. Non copiare la configurazione dall'istanza di produzione.
+3. Crea una dashboard e incolla l'esempio completo
+   [`examples/ats-card.yaml`](examples/ats-card.yaml) nell'editor YAML di
+   una scheda manuale. Per una dashboard intera, usa
+   [`examples/ats-dashboard.yaml`](examples/ats-dashboard.yaml).
+   La card `custom:ats-invoice-history-card` viene caricata **automaticamente
+   dall'integrazione**: non devi aggiungere risorse Lovelace né spostare JS in
+   `/config/www`. Al primo avvio aggiorna la pagina / riavvia la Companion App.
+4. Premi **Scarica fatture mancanti**. Il servizio salva soltanto i PDF non
+   già presenti. I file sono privati, ordinati per anno in `/media/ats/fatture/`.
+5. Nello storico premi **Apri PDF** per la visualizzazione interna, oppure
+   **Scarica PDF** per ottenere una copia sul dispositivo.
+
+**Sicurezza:** il PDF è letto da un endpoint Home Assistant autenticato
+`GET /api/ats/invoice/{year}/{number}`, che verifica identità fattura e
+percorso. Non rendere pubbliche fatture in `/config/www` o `/local`.
+PDF.js è caricato dalla CDN **cdnjs.cloudflare.com** alla prima apertura
+(è richiesta connettività verso tale host); i dati delle fatture restano
+nella WebView del browser. In caso di CDN bloccata, **Scarica PDF** continua
+a funzionare.
+
+**Persistenza e backup:** su Home Assistant Container configura il mount
+persistente della cartella `/media`. I backup devono includerla, oppure
+prevedi un backup dedicato dell'archivio ATS.
+
+**Test e limiti:** usa la [checklist per istanza pulita](docs/test-ha-clean.md)
+per verificare autenticazione, sensori, import, PDF, sicurezza e Android.
+La disponibilità di un PDF sul portale (`PdfExist`) **non prova** da sola
+che il file sia stato già salvato in `/media`; il pulsante di download
+mancanti deve essere eseguito prima della prima apertura. Nessuna fattura
+o credenziale di esempio è inclusa nel repository.
+
