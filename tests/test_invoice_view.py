@@ -81,30 +81,82 @@ async def test_pdf_endpoint_rejects_portal_pdf_unavailable(tmp_path, monkeypatch
         await view.get(None, "2026", "INV_1")
 
 
+
 @pytest.mark.asyncio
-async def test_clean_install_automatically_registers_card():
-    # No Lovelace resource, /config/www copy, or external account required.
-    registered = []
+async def test_clean_install_registers_lovelace_resource():
+    from unittest.mock import AsyncMock, create_autospec
     paths = []
+    views = []
+    fallback = []
 
     class HTTP:
-        async def async_register_static_paths(self, configs):
-            paths.extend(configs)
+        async def async_register_static_paths(self, cfg):
+            paths.extend(cfg)
+        def register_view(self, item):
+            views.append(item)
 
-        def register_view(self, view):
-            registered.append(view)
-
+    collection = create_autospec(ats.ResourceStorageCollection, instance=True)
+    collection.async_get_info = AsyncMock(return_value={"resources": 0})
+    collection.async_items.return_value = []
+    collection.async_create_item = AsyncMock(return_value={"id": "resource1"})
+    hass = SimpleNamespace(
+        http=HTTP(), data={ats.LOVELACE_DATA: SimpleNamespace(resources=collection)}
+    )
     original = ats.add_extra_js_url
-    module_urls = []
-    ats.add_extra_js_url = lambda hass, url: module_urls.append(url)
+    ats.add_extra_js_url = lambda hass, url: fallback.append(url)
     try:
-        assert await ats.async_setup(SimpleNamespace(http=HTTP()), {})
+        assert await ats.async_setup(hass, {})
     finally:
         ats.add_extra_js_url = original
 
-    assert module_urls == ["/ats_static/invoice-history-card.js?v=0.4.0b6"]
+    collection.async_create_item.assert_awaited_once_with({
+        "res_type": "module",
+        "url": "/ats_static/invoice-history-card.js?v=0.4.0b7",
+    })
+    assert not fallback
     assert len(paths) == 1
     assert paths[0].url_path == "/ats_static/invoice-history-card.js"
     assert Path(paths[0].path).is_file()
-    assert len(registered) == 1
-    assert isinstance(registered[0], ats.ATSInvoicePDFView)
+    assert isinstance(views[0], ats.ATSInvoicePDFView)
+
+
+@pytest.mark.asyncio
+async def test_lovelace_resource_idempotent():
+    from unittest.mock import AsyncMock, create_autospec
+    class HTTP:
+        async def async_register_static_paths(self, paths):
+            pass
+        def register_view(self, view):
+            pass
+    collection = create_autospec(ats.ResourceStorageCollection, instance=True)
+    collection.async_get_info = AsyncMock(return_value={"resources": 1})
+    collection.async_items.return_value = [{
+        "id": "same", "type": "module",
+        "url": "/ats_static/invoice-history-card.js?v=0.4.0b7",
+    }]
+    collection.async_create_item = AsyncMock()
+    hass = SimpleNamespace(
+        http=HTTP(), data={ats.LOVELACE_DATA: SimpleNamespace(resources=collection)}
+    )
+    assert await ats.async_setup(hass, {})
+    collection.async_create_item.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_yaml_lovelace_fallback_registers_frontend_module():
+    class HTTP:
+        async def async_register_static_paths(self, paths):
+            pass
+        def register_view(self, view):
+            pass
+    hass = SimpleNamespace(
+        http=HTTP(), data={ats.LOVELACE_DATA: SimpleNamespace(resources=object())}
+    )
+    urls = []
+    original = ats.add_extra_js_url
+    ats.add_extra_js_url = lambda hass, url: urls.append(url)
+    try:
+        assert await ats.async_setup(hass, {})
+    finally:
+        ats.add_extra_js_url = original
+    assert urls == ["/ats_static/invoice-history-card.js?v=0.4.0b7"]

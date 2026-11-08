@@ -12,8 +12,8 @@ INTEGRATION = ROOT / "custom_components" / "ats"
 
 def test_manifest_and_frontend_asset_in_installed_integration():
     manifest = json.loads((INTEGRATION / "manifest.json").read_text())
-    assert manifest["version"] == "0.4.0b6"
-    assert "frontend" in manifest["dependencies"]
+    assert manifest["version"] == "0.4.0b7"
+    assert {"frontend", "http", "lovelace"} <= set(manifest["dependencies"])
 
     card = (INTEGRATION / "www" / "invoice-history-card.js").read_text()
     assert 'customElements.define("ats-invoice-history-card"' in card

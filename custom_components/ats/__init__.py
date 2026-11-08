@@ -8,6 +8,8 @@ from pathlib import Path
 from aiohttp import web
 import voluptuous as vol
 from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.lovelace.const import LOVELACE_DATA
+from homeassistant.components.lovelace.resources import ResourceStorageCollection
 from homeassistant.components.http import HomeAssistantView, StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
@@ -115,7 +117,22 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             )
         ]
     )
-    add_extra_js_url(hass, "/ats_static/invoice-history-card.js?v=0.4.0b6")
+    card_url = "/ats_static/invoice-history-card.js?v=0.4.0b7"
+    lovelace_data = hass.data.get(LOVELACE_DATA)
+    resources = lovelace_data.resources if lovelace_data else None
+    if isinstance(resources, ResourceStorageCollection):
+        # Persist the module in the actual Lovelace storage resource list.
+        # A plain add_extra_js_url is not consistently loaded by dashboards.
+        await resources.async_get_info()
+        entries = resources.async_items()
+        if not any(
+            (item.get("url") or "").split("?")[0] == "/ats_static/invoice-history-card.js"
+            for item in entries
+        ):
+            await resources.async_create_item({"res_type": "module", "url": card_url})
+    else:
+        # YAML resource mode cannot be written through the storage collection.
+        add_extra_js_url(hass, card_url)
     hass.http.register_view(ATSInvoicePDFView(hass))
     return True
 

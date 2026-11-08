@@ -118,14 +118,16 @@ class ATSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input=None):
         errors = {}
         if user_input is not None:
-            error = _validate_input(user_input)
+            # First setup uses only credentials and polling; ATS endpoints are
+            # discovered automatically and the HTTPS origin is fixed.
+            error = _validate_input({CONF_BASE_URL: DEFAULT_BASE_URL, **user_input})
             if error:
                 errors["base"] = error
             else:
                 username = (user_input.get(CONF_USERNAME) or "").strip()
                 password = user_input.get(CONF_PASSWORD) or ""
                 if username:
-                    auto = not (user_input.get(CONF_SUPPLY_PATH) or "").strip()
+                    auto = True
                     error = await _validate_portal_credentials(
                         username, password, discover=auto
                     )
@@ -139,11 +141,11 @@ class ATSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     return self.async_create_entry(
                     title="Alto Trevigiano Servizi",
                     data={
-                        CONF_BASE_URL: user_input[CONF_BASE_URL].strip().rstrip("/"),
-                        CONF_SUPPLY_PATH: (user_input.get(CONF_SUPPLY_PATH) or "").strip(),
-                        CONF_INVOICE_PATH: (user_input.get(CONF_INVOICE_PATH) or "").strip(),
-                        CONF_READING_PATH: (user_input.get(CONF_READING_PATH) or "").strip(),
-                        CONF_COOKIE: (user_input.get(CONF_COOKIE) or "").strip(),
+                        CONF_BASE_URL: DEFAULT_BASE_URL,
+                        CONF_SUPPLY_PATH: "",
+                        CONF_INVOICE_PATH: "",
+                        CONF_READING_PATH: "",
+                        CONF_COOKIE: "",
                         CONF_USERNAME: username,
                         CONF_PASSWORD: password,
                         CONF_SCAN_INTERVAL: int(
@@ -153,15 +155,10 @@ class ATSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
 
         schema = vol.Schema({
-            vol.Required(CONF_BASE_URL, default=DEFAULT_BASE_URL): str,
-            vol.Optional(CONF_USERNAME): TextSelector(
+            vol.Required(CONF_USERNAME): TextSelector(
                 TextSelectorConfig(autocomplete="username")
             ),
-            vol.Optional(CONF_PASSWORD): _PASSWORD_FIELD,
-            vol.Optional(CONF_SUPPLY_PATH): str,
-            vol.Optional(CONF_INVOICE_PATH): str,
-            vol.Optional(CONF_READING_PATH, default=""): str,
-            vol.Optional(CONF_COOKIE): str,
+            vol.Required(CONF_PASSWORD): _PASSWORD_FIELD,
             vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(
                 vol.Coerce(int), vol.Range(min=MIN_SCAN_INTERVAL, max=MAX_SCAN_INTERVAL)
             ),

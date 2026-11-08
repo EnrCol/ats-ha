@@ -30,7 +30,6 @@ async def test_auto_flow_creates_entry(hass, patch_validate):
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
-            CONF_BASE_URL: DEFAULT_BASE_URL,
             CONF_USERNAME: "user",
             CONF_PASSWORD: "pw",
             CONF_SCAN_INTERVAL: 60,
@@ -50,34 +49,25 @@ async def test_second_entry_aborts(hass, patch_validate):
     r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     await hass.config_entries.flow.async_configure(
         r["flow_id"],
-        {CONF_BASE_URL: DEFAULT_BASE_URL, CONF_USERNAME: "u", CONF_PASSWORD: "p", CONF_SCAN_INTERVAL: 60},
+        {CONF_USERNAME: "u", CONF_PASSWORD: "p", CONF_SCAN_INTERVAL: 60},
     )
     # Second entry must abort (one instance)
     r2 = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     r2 = await hass.config_entries.flow.async_configure(
         r2["flow_id"],
-        {CONF_BASE_URL: DEFAULT_BASE_URL, CONF_USERNAME: "u", CONF_PASSWORD: "p", CONF_SCAN_INTERVAL: 60},
+        {CONF_USERNAME: "u", CONF_PASSWORD: "p", CONF_SCAN_INTERVAL: 60},
     )
     assert r2["type"] == FlowResultType.ABORT
 
 
-async def test_legacy_cookie_flow(hass, monkeypatch):
-    # Cookie mode needs no credential validation call.
+async def test_new_user_form_has_only_three_fields(hass):
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"],
-        {
-            CONF_BASE_URL: DEFAULT_BASE_URL,
-            CONF_COOKIE: "sol-x=y",
-            CONF_SUPPLY_PATH: "/webapi/api/v1/supply-light/x/C1/1/",
-            CONF_INVOICE_PATH: "/webapi/api/v1/invoice/x/-1/0/0/",
-            CONF_SCAN_INTERVAL: 60,
-        },
-    )
-    assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert result["result"].data[CONF_COOKIE] == "sol-x=y"
+    assert result["type"] == FlowResultType.FORM
+    assert {field.schema for field in result["data_schema"].schema} == {
+        CONF_USERNAME, CONF_PASSWORD, CONF_SCAN_INTERVAL
+    }
 
 
 async def test_coordinator_accepts_config_entry(hass):

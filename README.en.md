@@ -6,7 +6,7 @@
 
 > Not affiliated with or endorsed by Alto Trevigiano Servizi. It uses the same requests the portal makes in your browser, so it may stop working if the portal changes.
 
-> **Beta.6 candidate in the `EnrCol/ats-ha` fork.** Check that the prerelease has actually been published before upgrading production.
+> **Beta.7 candidate in the `EnrCol/ats-ha` fork.** Check that the prerelease has actually been published before upgrading production.
 > Automatic mode uses **only your ATS online portal username and password** and discovers the customer and supplies without manual cookies or API paths.
 > Do not replace a working production installation with this branch.
 >
@@ -130,7 +130,7 @@ If ATS explicitly rejects your stored credentials, Home Assistant starts a **rea
 
 Open a GitHub issue with your Home Assistant version, the integration version and the log error, **without** cookies or account codes.
 
-## Beta.6 — complete installation with PDF viewer and example card
+## Beta.7 — complete installation with PDF viewer and example card
 
 This beta includes automatic ATS login, sensors, yearly invoice history, the
 `da_pagare` payment flag fix, `ats.download_invoices`, private invoice PDFs under
@@ -138,7 +138,7 @@ This beta includes automatic ATS login, sensors, yearly invoice history, the
 Home Assistant**, including the Android Companion App.
 
 1. In Home Assistant **Marketplace**, add **`EnrCol/ats-ha`** as a custom
-   *Integration* repository and install prerelease **`v0.4.0-beta.6`** when
+   *Integration* repository and install prerelease **`v0.4.0-beta.7`** when
    published. Alternatively copy the entire **`custom_components/ats/`**
    directory (including its **`www/`** directory) into Home Assistant and
    restart Core.
@@ -168,3 +168,10 @@ the file has already been downloaded locally. See the
 [clean-instance test checklist](docs/test-ha-clean.md) for setup and
 verification. No personal invoice or credentials are distributed.
 
+
+### Beta.7 — simplified first-run and native Lovelace registration
+
+- **New setup:** only ATS portal **username**, **password**, and **polling interval** (60 minutes by default) are shown. HTTPS origin, invoice/supply paths and cookies are discovered and stored automatically. Already-configured legacy entries retain advanced options.
+- **Lovelace card:** in storage resource mode ATS automatically registers `/ats_static/invoice-history-card.js?v=0.4.0b7` as a **module** resource, without duplicates on restart. Hard-refresh the frontend or reopen the Companion App after installation; in YAML resource mode the frontend module fallback is used and manual YAML registration may be needed.
+- **Stable suggested IDs:** new installations use e.g. `sensor.ats_fatture_presenti` and `sensor.ats_utenze_attive`, regardless of device/area prefixes. Existing **unique IDs and registered entity IDs remain unchanged**; examples may need adjustment for collisions or renamed entities.
+- **Security:** invoices remain private under `/media/ats/fatture/` and are fetched using `fetchWithAuth()`; no public `/local` links.

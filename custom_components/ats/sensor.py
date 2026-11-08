@@ -5,6 +5,7 @@ from math import isfinite
 from typing import Any
 
 from homeassistant.util import dt as dt_util
+from homeassistant.util import slugify
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -290,6 +291,14 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
         if unit == CURRENCY_EURO or metric in ("active_supplies", "total_supplies", "invoice_count", "unpaid_count", "annual_consumption_forecast"):
             self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_extra_state_attributes = {}
+
+    @property
+    def suggested_object_id(self) -> str:
+        """Stable new-install entity IDs, independent of area/device prefixes.
+
+        Existing entity registry IDs are not renamed: unique_id is unchanged.
+        """
+        return f"ats_{slugify(self._attr_name)}"
 
     @property
     def native_value(self):

@@ -49,11 +49,14 @@ class TestSensorIdentifiers(unittest.IsolatedAsyncioTestCase):
         for e in captured:
             # unique_id must stay entry_id-scoped (entity registry persistence)
             self.assertEqual(e._attr_unique_id, f"{entry.entry_id}_{e._key}")
+            self.assertTrue(e.suggested_object_id.startswith("ats_"))
             # device identifier must stay entry_id-scoped (device registry)
             ids = e._attr_device_info["identifiers"]
             self.assertIn((DOMAIN, entry.entry_id), ids)
 
         by_key = {e._key: e for e in captured}
+        self.assertEqual(by_key["invoices_total"].suggested_object_id, "ats_fatture_presenti")
+        self.assertEqual(by_key["supplies_active"].suggested_object_id, "ats_utenze_attive")
         for key, unit in {
             "invoiced_consumption": "m³",
             "last_reading_value": "m³",

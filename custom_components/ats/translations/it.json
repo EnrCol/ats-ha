@@ -3,16 +3,11 @@
     "step": {
       "user": {
         "title": "Alto Trevigiano Servizi",
-        "description": "Usa username e password dello Sportello Online ATS; non usare credenziali SPID/CIE. Cliente e forniture vengono rilevati automaticamente: lascia vuoti i percorsi API. I campi percorso e il cookie servono solo alla modalità manuale legacy.",
+        "description": "Inserisci username e password dello Sportello Online ATS (non SPID/CIE). Cliente, utenze e percorsi API vengono rilevati automaticamente. Modifica solo l'intervallo se necessario.",
         "data": {
-          "base_url": "URL base del portale",
-          "supply_path": "Percorso API utenze (solo modalità manuale, inizia con /webapi/...)",
-          "invoice_path": "Percorso API fatture (solo modalità manuale, inizia con /webapi/...)",
-          "cookie": "Cookie HTTP ATS (solo alternativa manuale)",
-          "scan_interval": "Intervallo aggiornamento in minuti",
-          "reading_path": "Percorso API letture contatore (opzionale, /webapi/api/v1/reading-base/...)",
           "username": "Username ATS",
-          "password": "Password ATS"
+          "password": "Password ATS",
+          "scan_interval": "Intervallo aggiornamento in minuti"
         }
       },
       "reauth_confirm": {

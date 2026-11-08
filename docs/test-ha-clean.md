@@ -1,4 +1,4 @@
-# Test ATS beta.6 su Home Assistant pulito
+# Test ATS beta.7 su Home Assistant pulito
 
 ## Perimetro
 - Target: HA Core **2026.11.0** o compatibile, HAOS oppure Container.
@@ -10,7 +10,7 @@
 
 ## Installazione
 1. Prima del test salvare uno snapshot o backup della configurazione di test.
-2. Installare la release `v0.4.0-beta.6` dal fork `EnrCol/ats-ha`
+2. Installare la release `v0.4.0-beta.7` dal fork `EnrCol/ats-ha`
    attraverso Marketplace (repository personalizzato, categoria *Integrazione*).
    In alternativa copiare **tutta** `custom_components/ats`.
 3. Riavviare Home Assistant una volta sola per caricare il codice Python.
@@ -53,3 +53,13 @@ Ripristinare backup della dashboard; rimuovere la card e l'integrazione ATS
 dalla test instance e reinstallare la versione precedente se necessaria.
 Il file archivio `/media/ats/fatture` non va eliminato automaticamente.
 Il live non deve essere modificato dal collaudo.
+
+## Verifiche beta.7 — installazione davvero pulita
+
+- [ ] Solo **username, password, intervallo** nel form iniziale; nessun cookie o percorso API.
+- [ ] Nessuna entry ATS, entità ATS, dashboard ATS, risorsa card ATS e installazione Marketplace residua prima di installare.
+- [ ] Cancellare i PDF TEST preesistenti *solo se la capacità di rimozione è disponibile via HA MCP*; non modificare altri volumi o il live.
+- [ ] La release sul TEST installa la card in Lovelace Resources, con URL `/ats_static/invoice-history-card.js?v=0.4.0b7`.
+- [ ] La dashboard di esempio mostra sensori `sensor.ats_*` e nessun errore *Custom element doesn't exist*.
+- [ ] Download fatture e apertura PDF funzionanti, con le credenziali inserite **solo** sul TEST.
+- [ ] Il riavvio con frontend ricostruito non crea un doppione della risorsa JS.

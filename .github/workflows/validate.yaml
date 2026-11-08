@@ -77,25 +77,25 @@ jobs:
         with:
           category: integration
 
-  publish-beta6:
+  publish-beta7:
     # Never publish from PRs, other branches, or before all checks are green.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/ats-beta6-installable-20261108'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/ats-beta7-clean-install-20261108'
     needs: [syntax, offline-tests, ha-tests, hassfest, hacs]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Publish GitHub prerelease v0.4.0-beta.6
+      - name: Publish GitHub prerelease v0.4.0-beta.7
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          TAG=v0.4.0-beta.6
+          TAG=v0.4.0-beta.7
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "::error::Prerelease already exists; refusing to overwrite it."
             exit 1
           fi
           gh release create "$TAG" --target "$GITHUB_SHA" --prerelease \
-            --title "ATS v0.4.0-beta.6" \
-            --notes "Beta.6: live-parity ATS sensors, corrected payments and SupplyNo, authenticated on-demand PDF archive, bundled PDF.js Lovelace card, example dashboards, Italian/English docs and clean-instance tests. No user credentials or invoices are bundled. This is a pre-release from EnrCol/ats-ha, not an upstream release."
+            --title "ATS v0.4.0-beta.7" \
+            --notes "Beta.7: live-parity ATS sensors, corrected payments and SupplyNo, authenticated on-demand PDF archive, bundled PDF.js Lovelace card, example dashboards, Italian/English docs and clean-instance tests. No user credentials or invoices are bundled. This is a pre-release from EnrCol/ats-ha, not an upstream release."
