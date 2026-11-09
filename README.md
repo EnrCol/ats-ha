@@ -92,6 +92,14 @@ Se smette di funzionare, l'aggiornamento fallisce e Home Assistant mostra l'erro
 - I valori assenti restano `unknown`, non vengono sostituiti con zero.
 - Il consumo fatturato totale somma il campo `Consumption` delle fatture ricevute: può coprire più periodi e non è una lettura cumulativa del contatore.
 
+## Correzioni e privacy dei sensori
+
+- Se il portale riporta `Payed=true`, la fattura è considerata **pagata** anche se il campo `ToPay` è incongruente. I dettagli mantengono `da_pagare_ats` come valore originale per la diagnosi.
+- La "prossima scadenza" esclude le date passate e le fatture già pagate.
+- Sono riconosciute le date ISO e le date italiane `GG/MM/AAAA` e `GG-MM-AAAA`.
+- Se la risposta API contiene un elenco valido ma vuoto, i conteggi mostrano **0**.
+- Per minimizzare i dati nel database, gli **attributi aggiuntivi** ATS (indirizzi, contatori e dettagli fatture) sono omessi dalle nuove registrazioni di Recorder. Rimangono disponibili in tempo reale nel frontend e continuano a essere registrabili gli stati/statistiche. **I vecchi record e i backup non vengono ripuliti retroattivamente.**
+
 ## Risoluzione problemi
 
 - **Errore all'aggiunta o entità non disponibili:** controlla che i percorsi comincino con `/`, che siano completi di codici e che il cookie sia ancora valido (vedi *Durata della sessione*).

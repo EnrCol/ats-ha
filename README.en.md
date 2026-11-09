@@ -92,6 +92,13 @@ If it stops working, the update fails and Home Assistant shows the integration's
 - Missing values stay `unknown`; they are not replaced with zero.
 - Total billed consumption sums the `Consumption` field of the invoices received: it may span several periods and is not a cumulative meter reading.
 
+## Sensor reliability and Recorder privacy
+
+- An explicit `Payed=true` takes precedence over a conflicting `ToPay` value. `da_pagare_ats` retains the raw portal flag for troubleshooting.
+- Next due date excludes past due dates and already-paid invoices.
+- ISO and Italian day-first date formats are accepted. A successfully loaded empty list yields count **0**.
+- The integration excludes ATS-specific attributes (supply addresses, meters and invoice details) from **new Recorder history rows**, while keeping these attributes available to live cards and preserving state/statistics recording. **Old history and backups are not cleaned retroactively.**
+
 ## Troubleshooting
 
 - **Error when adding, or unavailable entities:** check that the paths start with `/`, include their codes and that the cookie is still valid (see *Session lifetime*).

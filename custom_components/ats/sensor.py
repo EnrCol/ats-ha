@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+
+from homeassistant.const import MATCH_ALL
+from homeassistant.util import dt as dt_util
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
@@ -32,10 +35,20 @@ def _date(value):
         return None
     if isinstance(value, datetime):
         return value
-    try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    except (TypeError, ValueError):
+    text = str(value).strip()
+    if not text:
         return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        pass
+    for fmt in ("%d/%m/%Y %H:%M:%S", "%d-%m-%Y %H:%M:%S",
+                "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    return None
 
 def _first(d: dict, *keys):
     for key in keys:
@@ -67,6 +80,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
     _attr_has_entity_name = True
+    # Keep core state and statistics in Recorder but avoid archiving supply
+    # addresses, meters, invoice details and other ATS-specific attributes.
+    _unrecorded_attributes = frozenset({MATCH_ALL})
 
     def __init__(self, coordinator, entry, key, name, metric, unit=None, device_class=None):
         super().__init__(coordinator)
@@ -120,11 +136,18 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
         if self._metric == "active_supplies":
             return sum(1 for s in supplies if s.get("Active") is True or str(s.get("StateDescription", "")).lower() == "attiva")
         if self._metric == "total_supplies":
-            return len(supplies) if supplies else None
+            return len(supplies) if self.coordinator.data is not None else None
         if self._metric == "invoice_count":
-            return len(invoices) if invoices else None
+            return len(invoices) if self.coordinator.data is not None else None
         if self._metric == "unpaid_count":
-            return sum(1 for i in invoices if i.get("Payed") is False or i.get("ToPay") is True or str(i.get("StatusText", "")).lower() in ("non pagata", "non pagato"))
+            return sum(
+                1 for i in invoices
+                if i.get("Payed") is not True and (
+                    i.get("Payed") is False
+                    or i.get("ToPay") is True
+                    or str(i.get("StatusText", "")).lower() in ("non pagata", "non pagato")
+                )
+            )
         if self._metric == "remaining_total":
             vals = [_number(_first(i, "RemainingAmount", "RemainigAmount")) for i in invoices]
             vals = [v for v in vals if v is not None]
@@ -142,12 +165,13 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
             vals = [v for v in vals if v is not None]
             return round(sum(vals), 3) if vals else None
         if self._metric in ("next_expiry_date", "next_expiry_amount"):
+            today = dt_util.now().date()
             upcoming = []
             for inv in invoices:
                 if inv.get("Payed") is True or inv.get("ToPay") is False:
                     continue
                 dt = _date(inv.get("ExpirationDate"))
-                if dt:
+                if dt is not None and dt.date() >= today:
                     upcoming.append((dt, _number(_first(inv, "RemainingAmount", "RemainigAmount"))))
             if not upcoming:
                 return None
@@ -197,7 +221,8 @@ class ATSAggregateSensor(CoordinatorEntity, SensorEntity):
                     "periodo_a": i.get("PeriodTo"),
                     "consumo": i.get("Consumption"),
                     "pagata": i.get("Payed"),
-                    "da_pagare": i.get("ToPay"),
+                    "da_pagare": False if i.get("Payed") is True else i.get("ToPay"),
+                    "da_pagare_ats": i.get("ToPay"),
                     "pdf_disponibile": i.get("PdfExist"),
                 } for idx, i in enumerate(invoices)
             }
