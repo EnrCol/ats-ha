@@ -1,10 +1,10 @@
 # Alto Trevigiano Servizi (ATS) for Home Assistant
 
-[Italiano](README.md) · English · [Stable v0.4.0](https://github.com/EnrCol/ats-ha/releases/tag/v0.4.0)
+[Italiano](README.md) · English · [Stable v0.4.1](https://github.com/EnrCol/ats-ha/releases/tag/v0.4.1)
 
 **Unofficial integration** that brings water supplies, invoices, payments and meter readings from the [Alto Trevigiano Servizi customer portal](https://sgc.altotrevigianoservizi.it/) into Home Assistant. This project is **not** affiliated with, approved by, or supported by ATS. Portal changes can affect the integration.
 
-**v0.4.0 is the first stable release of the [EnrCol/ats-ha fork](https://github.com/EnrCol/ats-ha)**, based on the original work by [Manu-Nat](https://github.com/Manu-Nat/ats-ha). It was functionally tested on Home Assistant TEST Core **2026.11.0**, with real ATS login, 19 sensors, 22 invoices, private PDF downloads, and the built-in Lovelace viewer. “Stable” indicates this project's release status, **not** official Home Assistant/ATS certification.
+**v0.4.0 was the first stable release of the [EnrCol/ats-ha fork](https://github.com/EnrCol/ats-ha)**, based on the original work by [Manu-Nat](https://github.com/Manu-Nat/ats-ha). **v0.4.1 is a maintenance release:** the current maintainer displayed by Home Assistant is **[@EnrCol](https://github.com/EnrCol)**. Manu-Nat's original authorship, MIT copyright and license remain unchanged. It was functionally tested on Home Assistant TEST Core **2026.11.0**, with real ATS login, 19 sensors, 22 invoices, private PDF downloads, and the built-in Lovelace viewer. “Stable” indicates this project's release status, **not** official Home Assistant/ATS certification.
 
 ## Features
 
@@ -48,12 +48,12 @@ Home Assistant may prefix or rename actual `entity_id` values based on the devic
 
 Invoice-year calculations use **issue date**, not billing-period dates. Paid invoices take precedence over potentially inconsistent raw `ToPay` flags. No data is invented for fields the portal does not provide. Forecasts are historical projections, not real-time usage measurements; the supplied m³ precision is retained even when HA suggests a no-decimal display.
 
-## Install v0.4.0
+## Install v0.4.1
 
 ### Marketplace / HACS (recommended)
 
 1. In the Home Assistant **Marketplace** or HACS, add the custom repository `EnrCol/ats-ha`, category **Integration**.
-2. Install **Alto Trevigiano Servizi (ATS)** version **v0.4.0** (the stable release, not an older beta).
+2. Install **Alto Trevigiano Servizi (ATS)** version **v0.4.1** (the stable release, not an older beta).
 3. **Restart Home Assistant** to activate the custom integration.
 4. Open **Settings → Devices & services → Add integration → Alto Trevigiano Servizi**.
 5. Enter your **ATS portal username and password**; optionally change the **polling interval** (60 minutes by default).
@@ -61,7 +61,7 @@ Invoice-year calculations use **issue date**, not billing-period dates. Paid inv
 
 ### Manual installation
 
-Download the [v0.4.0 source archive](https://github.com/EnrCol/ats-ha/archive/refs/tags/v0.4.0.zip), copy the complete `custom_components/ats/` directory (including `www/`) into `/config/custom_components/ats/`, restart HA, and complete the integration flow. Keep `/config` persistent. Do **not** copy config entries, passwords or invoice files from another installation.
+Download the [v0.4.1 source archive](https://github.com/EnrCol/ats-ha/archive/refs/tags/v0.4.1.zip), copy the complete `custom_components/ats/` directory (including `www/`) into `/config/custom_components/ats/`, restart HA, and complete the integration flow. Keep `/config` persistent. Do **not** copy config entries, passwords or invoice files from another installation.
 
 Existing legacy setups retain advanced options for cookie, HTTPS origin and API paths. Those fields are not shown in the first-run wizard.
 
@@ -82,7 +82,7 @@ title: Storico fatture ATS
 
 No `entity:` is required; the card finds the unique sensor with `ats_metric: invoice_count`, regardless of its area/device prefix. If the card finds several possible invoice sensors, an explicit `entity: sensor.YOUR_ACTUAL_ID` override remains available. The Markdown summary in both examples also identifies each metric dynamically using `integration_entities('ats')`.
 
-On first installation or update, hard-refresh the browser or restart the Companion App. In Lovelace **storage mode**, `/ats_static/invoice-history-card.js?v=0.4.0` is automatically registered/updated as a JavaScript module. In Lovelace **YAML resource mode**, manual module registration may be required if the automatic frontend fallback does not load it.
+On first installation or update, hard-refresh the browser or restart the Companion App. In Lovelace **storage mode**, `/ats_static/invoice-history-card.js?v=0.4.1` is automatically registered/updated as a JavaScript module. In Lovelace **YAML resource mode**, manual module registration may be required if the automatic frontend fallback does not load it.
 
 **Browser Mod or any separate third-party card is not required.**
 
@@ -121,7 +121,7 @@ The private local PDF directory `/media/ats/fatture/` may contain **full persona
 
 The beta.8 foundation passed **133 Python tests, 3 subtests and 6 JavaScript tests**, plus syntax, Hassfest and HACS checks. The live-account TEST run verified the login, 19 ATS metrics, 22 invoices, portable sample YAML and the authenticated PDF viewer **without Browser Mod**. These counts describe the test account, **not content bundled in the repository**.
 
-- [v0.4.0 release notes](docs/releases/v0.4.0.md)
+- [v0.4.1 release notes](docs/releases/v0.4.1.md) · [v0.4.0 history](docs/releases/v0.4.0.md)
 - [Clean-install verification checklist](docs/test-ha-clean.md)
 - [Energy dashboard date/consumption migration](docs/dashboard-energia-ats-beta5.md)
 - [Report issues](https://github.com/EnrCol/ats-ha/issues)

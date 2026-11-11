@@ -1,4 +1,4 @@
-# Test ATS v0.4.0 su Home Assistant pulito
+# Test ATS v0.4.1 su Home Assistant pulito
 
 ## Perimetro
 - Target: HA Core **2026.11.0** o compatibile, HAOS oppure Container.
@@ -10,7 +10,7 @@
 
 ## Installazione
 1. Prima del test salvare uno snapshot o backup della configurazione di test.
-2. Installare la release `v0.4.0` dal fork `EnrCol/ats-ha`
+2. Installare la release `v0.4.1` dal fork `EnrCol/ats-ha`
    attraverso Marketplace (repository personalizzato, categoria *Integrazione*).
    In alternativa copiare **tutta** `custom_components/ats`.
 3. Riavviare Home Assistant una volta sola per caricare il codice Python.
@@ -54,25 +54,25 @@ dalla test instance e reinstallare la versione precedente se necessaria.
 Il file archivio `/media/ats/fatture` non va eliminato automaticamente.
 Il live non deve essere modificato dal collaudo.
 
-## Verifiche v0.4.0 — installazione davvero pulita
+## Verifiche v0.4.1 — installazione davvero pulita
 
 - [ ] Solo **username, password, intervallo** nel form iniziale; nessun cookie o percorso API.
 - [ ] Nessuna entry ATS, entità ATS, dashboard ATS, risorsa card ATS e installazione Marketplace residua prima di installare.
 - [ ] Cancellare i PDF TEST preesistenti *solo se la capacità di rimozione è disponibile via HA MCP*; non modificare altri volumi o il live.
-- [ ] La release sul TEST installa la card in Lovelace Resources, con URL `/ats_static/invoice-history-card.js?v=0.4.0`.
+- [ ] La release sul TEST installa la card in Lovelace Resources, con URL `/ats_static/invoice-history-card.js?v=0.4.1`.
 - [ ] La dashboard di esempio mostra sensori `sensor.ats_*` e nessun errore *Custom element doesn't exist*.
 - [ ] Download fatture e apertura PDF funzionanti, con le credenziali inserite **solo** sul TEST.
 - [ ] Il riavvio con frontend ricostruito non crea un doppione della risorsa JS.
 
-## v0.4.0 — portabilità completa
+## v0.4.1 — portabilità completa
 - [ ] Il riepilogo mostra i valori corretti con entity_id automaticamente prefissati dall'area o dal dispositivo.
 - [ ] La card dello storico funziona senza `entity:` e apre i PDF con PDF.js, anche senza Browser Mod.
 - [ ] Modificare l'entity_id del sensore ATS sul TEST: il riepilogo e la card devono continuare a funzionare.
-- [ ] Passare dalla beta.7 alla v0.4.0: la risorsa Lovelace viene aggiornata all'URL `?v=0.4.0`, senza duplicati.
+- [ ] Passare dalla beta.7 alla v0.4.1: la risorsa Lovelace viene aggiornata all'URL `?v=0.4.1`, senza duplicati.
 - [ ] Installazione precedente: `unique_id` e identificativi già registrati non vengono modificati.
 - [ ] Sensore temporaneamente non disponibile: la card mostra un messaggio leggibile, non un errore rosa.
 
-## Privacy e Recorder v0.4.0
+## Privacy e Recorder v0.4.1
 - [ ] Dopo l'aggiornamento il sensore `invoice_count` continua a esporre `storico_fatture`, `riepilogo_annuale` e `ats_metric` **nello stato corrente**.
 - [ ] I nuovi record Recorder dei sensori ATS non includono gli attributi personalizzati (indirizzi, POD, dettagli fatture, letture).
 - [ ] Stati numerici e statistiche (se il sensore ha una `state_class` valida) rimangono disponibili.
