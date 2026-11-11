@@ -111,7 +111,7 @@ async def test_clean_install_registers_lovelace_resource():
 
     collection.async_create_item.assert_awaited_once_with({
         "res_type": "module",
-        "url": "/ats_static/invoice-history-card.js?v=0.4.0",
+        "url": "/ats_static/invoice-history-card.js?v=0.4.1",
     })
     assert not fallback
     assert len(paths) == 1
@@ -132,7 +132,7 @@ async def test_lovelace_resource_idempotent():
     collection.async_get_info = AsyncMock(return_value={"resources": 1})
     collection.async_items.return_value = [{
         "id": "same", "type": "module",
-        "url": "/ats_static/invoice-history-card.js?v=0.4.0",
+        "url": "/ats_static/invoice-history-card.js?v=0.4.1",
     }]
     collection.async_create_item = AsyncMock()
     hass = SimpleNamespace(
@@ -170,7 +170,7 @@ async def test_lovelace_resource_updated_on_version_upgrade():
     collection.async_update_item.assert_awaited_once_with(
         "existing-resource", {
             "res_type": "module",
-            "url": "/ats_static/invoice-history-card.js?v=0.4.0",
+            "url": "/ats_static/invoice-history-card.js?v=0.4.1",
         }
     )
 
@@ -192,4 +192,4 @@ async def test_yaml_lovelace_fallback_registers_frontend_module():
         assert await ats.async_setup(hass, {})
     finally:
         ats.add_extra_js_url = original
-    assert urls == ["/ats_static/invoice-history-card.js?v=0.4.0"]
+    assert urls == ["/ats_static/invoice-history-card.js?v=0.4.1"]

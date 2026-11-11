@@ -12,7 +12,8 @@ INTEGRATION = ROOT / "custom_components" / "ats"
 
 def test_manifest_and_frontend_asset_in_installed_integration():
     manifest = json.loads((INTEGRATION / "manifest.json").read_text())
-    assert manifest["version"] == "0.4.0"
+    assert manifest["version"] == "0.4.1"
+    assert manifest["codeowners"] == ["@EnrCol"]
     assert manifest["documentation"] == "https://github.com/EnrCol/ats-ha"
     assert manifest["issue_tracker"] == "https://github.com/EnrCol/ats-ha/issues"
     assert {"frontend", "http", "lovelace"} <= set(manifest["dependencies"])
@@ -59,9 +60,9 @@ def test_readme_explains_security_and_android_workflow():
 def test_stable_release_docs_cover_privacy_and_portable_card():
     it = (ROOT / "README.md").read_text()
     en = (ROOT / "README.en.md").read_text()
-    notes = (ROOT / "docs/releases/v0.4.0.md").read_text()
+    notes = (ROOT / "docs/releases/v0.4.1.md").read_text()
     for doc in (it, en):
-        assert "v0.4.0" in doc
+        assert "v0.4.1" in doc
         assert "ats_metric" in doc
         assert "Browser Mod" in doc
         assert "Recorder" in doc
@@ -72,5 +73,7 @@ def test_stable_release_docs_cover_privacy_and_portable_card():
     assert "_unrecorded_attributes" in en
     assert "non retroattiva" in it
     assert "not retroactive" in en.lower()
-    assert "v0.4.0" in notes
+    assert "v0.4.1" in notes
+    assert "Manu-Nat" in it and "Manu-Nat" in en
+    assert "@EnrCol" in it and "@EnrCol" in en
     assert not (ROOT / "custom_components/ats/manifest.json").read_text().count("0.4.0b8")
